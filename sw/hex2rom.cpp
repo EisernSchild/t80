@@ -1,7 +1,7 @@
 //
 // Binary and intel/motorola hex to VHDL ROM converter
 //
-// Version : 0221
+// Version : 0244
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -57,6 +57,8 @@
 // 0220 : Changed array ROM format, added support for Xilinx .UCF generation
 //
 // 0221 : Fixed small .UCF generation for small ROMs
+//
+// 0244 : Added Leonardo .UCF option
 //
 
 #include <stdio.h>
@@ -587,7 +589,7 @@ private:
 
 int main (int argc, char *argv[])
 {
-	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0221\n";
+	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0244\n";
 
 	try
 	{
@@ -609,7 +611,8 @@ int main (int argc, char *argv[])
 			cerr << "      z for tri-state output\n";
 			cerr << "      a for array ROM\n";
 			cerr << "      s for synchronous ROM\n";
-			cerr << "      u for xilinx ucf\n";
+			cerr << "      u for XST ucf\n";
+			cerr << "      l for Leonardo ucf\n";
 			cerr << "  S = SelectRAM usage in 1/16 parts (only used when O = u)\n";
 			cerr << "\nExample:\n";
 			cerr << "  hex2rom test.hex Test_ROM 18b16z\n\n";
@@ -638,7 +641,7 @@ int main (int argc, char *argv[])
 			throw "Error in output format argument!\n";
 		}
 
-		if (aWidth > 32 || (endian != 'l' && endian != 'b') || dWidth > 32 || (result > 3 && O != 'z' && O != 'a' && O != 's' && O != 'u'))
+		if (aWidth > 32 || (endian != 'l' && endian != 'b') || dWidth > 32 || (result > 3 && O != 'z' && O != 'a' && O != 's' && O != 'u' && O != 'l'))
 		{
 			throw "Error in output format argument!\n";
 		}
@@ -670,7 +673,7 @@ int main (int argc, char *argv[])
 			words <<= 1;
 		}
 
-		if (O != 'u')
+		if (O != 'u' && O != 'l')
 		{
 			printf("-- This file was generated with hex2rom written by Daniel Wallner\n");
 			printf("\nlibrary IEEE;");
@@ -848,13 +851,27 @@ int main (int argc, char *argv[])
 							bitMask <<= 1;
 						}
 
-						if (selectIter == 1)
+						if (O == 'u')
 						{
-							printf("\nINST *s%s%d INIT = %04X;", outFileName.c_str(), j, bits);
+							if (selectIter == 1)
+							{
+								printf("\nINST *s%s%d INIT = %04X;", outFileName.c_str(), j, bits);
+							}
+							else
+							{
+								printf("\nINST *s%s%d%d INIT = %04X;", outFileName.c_str(), i, j, bits);
+							}
 						}
 						else
 						{
-							printf("\nINST *s%s%d%d INIT = %04X;", outFileName.c_str(), i, j, bits);
+							if (selectIter == 1)
+							{
+								printf("\nINST *sG1_%d_S%s INIT = %04X;", j, outFileName.c_str(), bits);
+							}
+							else
+							{
+								printf("\nINST *sG1_%d_sG2_%d_S%s INIT = %04X;", i, j, outFileName.c_str(), bits);
+							}
 						}
 					}
 				}
@@ -885,13 +902,27 @@ int main (int argc, char *argv[])
 
 						if (init)
 						{
-							if (blockIter == 1)
+							if (O == 'u')
 							{
-								printf("\nINST *b%s%d INIT_%02X = ", outFileName.c_str(), j, k);
+								if (blockIter == 1)
+								{
+									printf("\nINST *b%s%d INIT_%02X = ", outFileName.c_str(), j, k);
+								}
+								else
+								{
+									printf("\nINST *b%s%d%d INIT_%02X = ", outFileName.c_str(), i, j, k);
+								}
 							}
 							else
 							{
-								printf("\nINST *b%s%d%d INIT_%02X = ", outFileName.c_str(), i, j, k);
+								if (blockIter == 1)
+								{
+									printf("\nINST *bG1_%d_B%s INIT_%02X = ", j, outFileName.c_str(), k);
+								}
+								else
+								{
+									printf("\nINST *bG1_%d_bG2_%d_B%s INIT_%02X = ", i, j, outFileName.c_str(), k);
+								}
 							}
 							for (pos = 0; pos < 32; pos++)
 							{
