@@ -2,7 +2,7 @@
 -- 16450 compatible UART with synchronous bus interface
 -- RClk/BaudOut is XIn enable instead of actual clock
 --
--- Version : 0249
+-- Version : 0249b
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -50,6 +50,9 @@
 -- 0249 : Fixed interrupt and baud rate bugs found by Andy Dyer
 --        Added modem status and break detection
 --        Added support for 1.5 and 2 stop bits
+--
+-- 0249b : Fixed loopback break generation bugs found by Andy Dyer
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -122,8 +125,8 @@ begin
 	RTS_n <= MCR(4) or not MCR(1);
 	OUT1_n <= MCR(4) or not MCR(2);
 	OUT2_n <= MCR(4) or not MCR(3);
-	SOut <= (MCR(4) or TXD) and not LCR(6);
-	RXD <= SIn when MCR(4) = '0' else TXD;
+	SOut <= MCR(4) or (TXD and not LCR(6));
+	RXD <= SIn when MCR(4) = '0' else (TXD and not LCR(6));
 
 	Intr <= not IIR(0);
 
