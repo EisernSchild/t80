@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0238
+-- Version : 0238b
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -53,6 +53,8 @@
 --	0235 : Added IM 2 fix by Mike Johnson
 --
 --	0238 : Added NoRead signal
+--
+--	0238b: Fixed instruction timing for POP and DJNZ
 --
 
 library IEEE;
@@ -455,7 +457,6 @@ begin
 			MCycles <= "011";
 			case to_integer(unsigned(MCycle)) is
 			when 1 =>
-				TStates <= "101";
 				Set_Addr_To <= aSP;
 			when 2 =>
 				IncDec_16 <= "0111";
@@ -873,6 +874,7 @@ begin
 			MCycles <= "011";
 			case to_integer(unsigned(MCycle)) is
 			when 1 =>
+				TStates <= "101";
 				I_DJNZ <= '1';
 				Set_BusB_To <= "1010";
 				Set_BusA_To(2 downto 0) <= "000";
