@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0238
+-- Version : 0240
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -52,7 +52,15 @@ package T80_Pack is
 
 	component T80
 	generic(
-		Mode : integer := 0	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
+		Mode : integer := 0;	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
+		Flag_C : integer := 0;
+		Flag_N : integer := 1;
+		Flag_P : integer := 2;
+		Flag_X : integer := 3;
+		Flag_H : integer := 4;
+		Flag_Y : integer := 5;
+		Flag_Z : integer := 6;
+		Flag_S : integer := 7
 	);
 	port(
 		RESET_n		: in std_logic;
@@ -75,9 +83,9 @@ package T80_Pack is
 		DO			: out std_logic_vector(7 downto 0);
 		MC			: out std_logic_vector(2 downto 0);
 		TS			: out std_logic_vector(2 downto 0);
-		False_M1	: out std_logic;
 		IntCycle_n	: out std_logic;
-		IntE		: out std_logic
+		IntE		: out std_logic;
+		Stop		: out std_logic
 	);
 	end component;
 
@@ -85,7 +93,15 @@ package T80_Pack is
 
 	component T80_MCode
 	generic(
-		Mode : integer := 0
+		Mode : integer := 0;
+		Flag_C : integer := 0;
+		Flag_N : integer := 1;
+		Flag_P : integer := 2;
+		Flag_X : integer := 3;
+		Flag_H : integer := 4;
+		Flag_Y : integer := 5;
+		Flag_Z : integer := 6;
+		Flag_S : integer := 7
 	);
 	port(
 		IR				: in std_logic_vector(7 downto 0);
@@ -147,6 +163,17 @@ package T80_Pack is
 	end component;
 
 	component T80_ALU
+	generic(
+		Mode : integer := 0;
+		Flag_C : integer := 0;
+		Flag_N : integer := 1;
+		Flag_P : integer := 2;
+		Flag_X : integer := 3;
+		Flag_H : integer := 4;
+		Flag_Y : integer := 5;
+		Flag_Z : integer := 6;
+		Flag_S : integer := 7
+	);
 	port(
 		Arith16		: in std_logic;
 		Z16			: in std_logic;

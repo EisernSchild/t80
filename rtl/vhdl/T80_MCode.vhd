@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0238b
+-- Version : 0240
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -56,6 +56,8 @@
 --
 --	0238b: Fixed instruction timing for POP and DJNZ
 --
+--	0240 : Added (IX/IY+d) states, removed op-codes from mode 2 and added all remaining mode 3 op-codes
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -64,7 +66,15 @@ use work.T80_Pack.all;
 
 entity T80_MCode is
 	generic(
-		Mode : integer := 0
+		Mode : integer := 0;
+		Flag_C : integer := 0;
+		Flag_N : integer := 1;
+		Flag_P : integer := 2;
+		Flag_X : integer := 3;
+		Flag_H : integer := 4;
+		Flag_Y : integer := 5;
+		Flag_Z : integer := 6;
+		Flag_S : integer := 7
 	);
 	port(
 		IR				: in std_logic_vector(7 downto 0);
@@ -132,16 +142,29 @@ architecture rtl of T80_MCode is
 		cc : bit_vector(2 downto 0)
 		) return boolean is
 	begin
-		case cc is
-		when "000" => return F(6) = '0'; -- NZ
-		when "001" => return F(6) = '1'; -- Z
-		when "010" => return F(0) = '0'; -- NC
-		when "011" => return F(0) = '1'; -- C
-		when "100" => return F(2) = '0'; -- PO
-		when "101" => return F(2) = '1'; -- PE
-		when "110" => return F(7) = '0'; -- P
-		when "111" => return F(7) = '1'; -- M
-		end case;
+		if Mode = 3 then
+			case cc is
+			when "000" => return F(7) = '0'; -- NZ
+			when "001" => return F(7) = '1'; -- Z
+			when "010" => return F(4) = '0'; -- NC
+			when "011" => return F(4) = '1'; -- C
+			when "100" => return false;
+			when "101" => return false;
+			when "110" => return false;
+			when "111" => return false;
+			end case;
+		else
+			case cc is
+			when "000" => return F(6) = '0'; -- NZ
+			when "001" => return F(6) = '1'; -- Z
+			when "010" => return F(0) = '0'; -- NC
+			when "011" => return F(0) = '1'; -- C
+			when "100" => return F(2) = '0'; -- PO
+			when "101" => return F(2) = '1'; -- PE
+			when "110" => return F(7) = '0'; -- P
+			when "111" => return F(7) = '1'; -- M
+			end case;
+		end if;
 	end;
 
 begin
@@ -300,19 +323,32 @@ begin
 			when others => null;
 			end case;
 		when "00111010" =>
-			-- LD A,(nn)
-			MCycles <= "100";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Set_Addr_To <= aZI;
-				Inc_PC <= '1';
-			when 4 =>
-				Read_To_Acc <= '1';
-			when others => null;
-			end case;
+			if Mode = 3 then
+				-- LDD A,(HL)
+				MCycles <= "010";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_To <= aXY;
+				when 2 =>
+					Read_To_Acc <= '1';
+					IncDec_16 <= "1110";
+				when others => null;
+				end case;
+			else
+				-- LD A,(nn)
+				MCycles <= "100";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Set_Addr_To <= aZI;
+					Inc_PC <= '1';
+				when 4 =>
+					Read_To_Acc <= '1';
+				when others => null;
+				end case;
+			end if;
 		when "00000010" =>
 			-- LD (BC),A
 			MCycles <= "010";
@@ -336,20 +372,34 @@ begin
 			when others => null;
 			end case;
 		when "00110010" =>
-			-- LD (nn),A
-			MCycles <= "100";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Set_Addr_To <= aZI;
-				Inc_PC <= '1';
-				Set_BusB_To <= "0111";
-			when 4 =>
-				Write <= '1';
-			when others => null;
-			end case;
+			if Mode = 3 then
+				-- LDD (HL),A
+				MCycles <= "010";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_To <= aXY;
+					Set_BusB_To <= "0111";
+				when 2 =>
+					Write <= '1';
+					IncDec_16 <= "1110";
+				when others => null;
+				end case;
+			else
+				-- LD (nn),A
+				MCycles <= "100";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Set_Addr_To <= aZI;
+					Inc_PC <= '1';
+					Set_BusB_To <= "0111";
+				when 4 =>
+					Write <= '1';
+				when others => null;
+				end case;
+			end if;
 
 -- 16 BIT LOAD GROUP
 		when "00000001"|"00010001"|"00100001"|"00110001" =>
@@ -377,47 +427,74 @@ begin
 			when others => null;
 			end case;
 		when "00101010" =>
-			-- LD HL,(nn)
-			MCycles <= "101";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Set_Addr_To <= aZI;
-				Inc_PC <= '1';
-				LDW <= '1';
-			when 4 =>
-				Set_BusA_To(2 downto 0) <= "101"; -- L
-				Read_To_Reg <= '1';
-				Inc_WZ <= '1';
-				Set_Addr_To <= aZI;
-			when 5 =>
-				Set_BusA_To(2 downto 0) <= "100"; -- H
-				Read_To_Reg <= '1';
-			when others => null;
-			end case;
+			if Mode = 3 then
+				-- LDI A,(HL)
+				MCycles <= "010";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_To <= aXY;
+				when 2 =>
+					Read_To_Acc <= '1';
+					IncDec_16 <= "0110";
+				when others => null;
+				end case;
+			else
+				-- LD HL,(nn)
+				MCycles <= "101";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Set_Addr_To <= aZI;
+					Inc_PC <= '1';
+					LDW <= '1';
+				when 4 =>
+					Set_BusA_To(2 downto 0) <= "101"; -- L
+					Read_To_Reg <= '1';
+					Inc_WZ <= '1';
+					Set_Addr_To <= aZI;
+				when 5 =>
+					Set_BusA_To(2 downto 0) <= "100"; -- H
+					Read_To_Reg <= '1';
+				when others => null;
+				end case;
+			end if;
 		when "00100010" =>
-			-- LD (nn),HL
-			MCycles <= "101";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Set_Addr_To <= aZI;
-				Inc_PC <= '1';
-				LDW <= '1';
-				Set_BusB_To <= "0101"; -- L
-			when 4 =>
-				Inc_WZ <= '1';
-				Set_Addr_To <= aZI;
-				Write <= '1';
-				Set_BusB_To <= "0100"; -- H
-			when 5 =>
-				Write <= '1';
-			when others => null;
-			end case;
+			if Mode = 3 then
+				-- LDI (HL),A
+				MCycles <= "010";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_To <= aXY;
+					Set_BusB_To <= "0111";
+				when 2 =>
+					Write <= '1';
+					IncDec_16 <= "0110";
+				when others => null;
+				end case;
+			else
+				-- LD (nn),HL
+				MCycles <= "101";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Set_Addr_To <= aZI;
+					Inc_PC <= '1';
+					LDW <= '1';
+					Set_BusB_To <= "0101"; -- L
+				when 4 =>
+					Inc_WZ <= '1';
+					Set_Addr_To <= aZI;
+					Write <= '1';
+					Set_BusB_To <= "0100"; -- H
+				when 5 =>
+					Write <= '1';
+				when others => null;
+				end case;
+			end if;
 		when "11111001" =>
 			-- LD SP,HL
 			TStates <= "110";
@@ -482,41 +559,87 @@ begin
 
 -- EXCHANGE, BLOCK TRANSFER AND SEARCH GROUP
 		when "11101011" =>
-			-- EX DE,HL
-			ExchangeDH <= '1';
+			if Mode /= 3 then
+				-- EX DE,HL
+				ExchangeDH <= '1';
+			end if;
 		when "00001000" =>
-			-- EX AF,AF'
-			ExchangeAF <= '1';
+			if Mode = 3 then
+				-- LD (nn),SP
+				MCycles <= "101";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Set_Addr_To <= aZI;
+					Inc_PC <= '1';
+					LDW <= '1';
+					Set_BusB_To <= "1000";
+				when 4 =>
+					Inc_WZ <= '1';
+					Set_Addr_To <= aZI;
+					Write <= '1';
+					Set_BusB_To <= "1001";
+				when 5 =>
+					Write <= '1';
+				when others => null;
+				end case;
+			elsif Mode < 2 then
+				-- EX AF,AF'
+				ExchangeAF <= '1';
+			end if;
 		when "11011001" =>
-			-- EXX
-			ExchangeRS <= '1';
+			if Mode = 3 then
+				-- RETI
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_TO <= aSP;
+				when 2 =>
+					IncDec_16 <= "0111";
+					Set_Addr_To <= aSP;
+					LDZ <= '1';
+				when 3 =>
+					Jump <= '1';
+					IncDec_16 <= "0111";
+					I_RETN <= '1';
+					SetEI <= '1';
+				when others => null;
+				end case;
+			elsif Mode < 2 then
+				-- EXX
+				ExchangeRS <= '1';
+			end if;
 		when "11100011" =>
-			-- EX (SP),HL
-			MCycles <= "101";
-			case to_integer(unsigned(MCycle)) is
-			when 1 =>
-				Set_Addr_To <= aSP;
-			when 2 =>
-				Read_To_Reg <= '1';
-				Set_BusA_To <= "0101";
-				Set_BusB_To <= "0101";
-				Set_Addr_To <= aSP;
-			when 3 =>
-				IncDec_16 <= "0111";
-				Set_Addr_To <= aSP;
-				TStates <= "100";
-				Write <= '1';
-			when 4 =>
-				Read_To_Reg <= '1';
-				Set_BusA_To <= "0100";
-				Set_BusB_To <= "0100";
-				Set_Addr_To <= aSP;
-			when 5 =>
-				IncDec_16 <= "1111";
-				TStates <= "101";
-				Write <= '1';
-			when others => null;
-			end case;
+			if Mode /= 3 then
+				-- EX (SP),HL
+				MCycles <= "101";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					Set_Addr_To <= aSP;
+				when 2 =>
+					Read_To_Reg <= '1';
+					Set_BusA_To <= "0101";
+					Set_BusB_To <= "0101";
+					Set_Addr_To <= aSP;
+				when 3 =>
+					IncDec_16 <= "0111";
+					Set_Addr_To <= aSP;
+					TStates <= "100";
+					Write <= '1';
+				when 4 =>
+					Read_To_Reg <= '1';
+					Set_BusA_To <= "0100";
+					Set_BusB_To <= "0100";
+					Set_Addr_To <= aSP;
+				when 5 =>
+					IncDec_16 <= "1111";
+					TStates <= "101";
+					Write <= '1';
+				when others => null;
+				end case;
+			end if;
 
 -- 8 BIT ARITHMETIC AND LOGICAL GROUP
 		when "10000000"|"10000001"|"10000010"|"10000011"|"10000100"|"10000101"|"10000111"
@@ -781,115 +904,186 @@ begin
 			when others => null;
 			end case;
 		when "11000010"|"11001010"|"11010010"|"11011010"|"11100010"|"11101010"|"11110010"|"11111010" =>
-			-- JP cc,nn
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Inc_PC <= '1';
-				if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
-					Jump <= '1';
-				end if;
-			when others => null;
-			end case;
+			if IR(5) = '1' and Mode = 3 then
+				case IRB(4 downto 3) is
+				when "00" =>
+					-- LD ($FF00+C),A
+					MCycles <= "010";
+					case to_integer(unsigned(MCycle)) is
+					when 1 =>
+						Set_Addr_To <= aBC;
+						Set_BusB_To	<= "0111";
+					when 2 =>
+						Write <= '1';
+						IORQ <= '1';
+					when others =>
+					end case;
+				when "01" =>
+					-- LD (nn),A
+					MCycles <= "100";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						Inc_PC <= '1';
+						LDZ <= '1';
+					when 3 =>
+						Set_Addr_To <= aZI;
+						Inc_PC <= '1';
+						Set_BusB_To <= "0111";
+					when 4 =>
+						Write <= '1';
+					when others => null;
+					end case;
+				when "10" =>
+					-- LD A,($FF00+C)
+					MCycles <= "010";
+					case to_integer(unsigned(MCycle)) is
+					when 1 =>
+						Set_Addr_To <= aBC;
+					when 2 =>
+						Read_To_Acc <= '1';
+						IORQ <= '1';
+					when others =>
+					end case;
+				when "11" =>
+					-- LD A,(nn)
+					MCycles <= "100";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						Inc_PC <= '1';
+						LDZ <= '1';
+					when 3 =>
+						Set_Addr_To <= aZI;
+						Inc_PC <= '1';
+					when 4 =>
+						Read_To_Acc <= '1';
+					when others => null;
+					end case;
+				end case;
+			else
+				-- JP cc,nn
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Inc_PC <= '1';
+					if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
+						Jump <= '1';
+					end if;
+				when others => null;
+				end case;
+			end if;
 		when "00011000" =>
-			-- JR e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			if Mode /= 2 then
+				-- JR e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 		when "00111000" =>
-			-- JR C,e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				if F(0) = '0' then
-					MCycles <= "010";
-				end if;
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			if Mode /= 2 then
+				-- JR C,e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					if F(Flag_C) = '0' then
+						MCycles <= "010";
+					end if;
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 		when "00110000" =>
-			-- JR NC,e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				if F(0) = '1' then
-					MCycles <= "010";
-				end if;
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			if Mode /= 2 then
+				-- JR NC,e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					if F(Flag_C) = '1' then
+						MCycles <= "010";
+					end if;
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 		when "00101000" =>
-			-- JR Z,e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				if F(6) = '0' then
-					MCycles <= "010";
-				end if;
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			if Mode /= 2 then
+				-- JR Z,e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					if F(Flag_Z) = '0' then
+						MCycles <= "010";
+					end if;
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 		when "00100000" =>
-			-- JR NZ,e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				if F(6) = '1' then
-					MCycles <= "010";
-				end if;
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			if Mode /= 2 then
+				-- JR NZ,e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					if F(Flag_Z) = '1' then
+						MCycles <= "010";
+					end if;
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 		when "11101001" =>
 			-- JP (HL)
 			JumpXY <= '1';
 		when "00010000" =>
-			-- DJNZ,e
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 1 =>
-				TStates <= "101";
+			if Mode = 3 then
 				I_DJNZ <= '1';
-				Set_BusB_To <= "1010";
-				Set_BusA_To(2 downto 0) <= "000";
-				Read_To_Reg <= '1';
-				Save_ALU <= '1';
-				ALU_Op <= "1010";
-			when 2 =>
-				I_DJNZ <= '1';
-				Inc_PC <= '1';
-			when 3 =>
-				NoRead <= '1';
-				JumpE <= '1';
-				TStates <= "101";
-			when others => null;
-			end case;
+			elsif Mode < 2 then
+				-- DJNZ,e
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					TStates <= "101";
+					I_DJNZ <= '1';
+					Set_BusB_To <= "1010";
+					Set_BusA_To(2 downto 0) <= "000";
+					Read_To_Reg <= '1';
+					Save_ALU <= '1';
+					ALU_Op <= "1010";
+				when 2 =>
+					I_DJNZ <= '1';
+					Inc_PC <= '1';
+				when 3 =>
+					NoRead <= '1';
+					JumpE <= '1';
+					TStates <= "101";
+				when others => null;
+				end case;
+			end if;
 
 -- CALL AND RETURN GROUP
 		when "11001101" =>
@@ -917,33 +1111,35 @@ begin
 			when others => null;
 			end case;
 		when "11000100"|"11001100"|"11010100"|"11011100"|"11100100"|"11101100"|"11110100"|"11111100" =>
-			-- CALL cc,nn
-			MCycles <= "101";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				LDZ <= '1';
-			when 3 =>
-				Inc_PC <= '1';
-				LDW <= '1';
-				if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
+			if IR(5) = '0' or Mode /= 3 then
+				-- CALL cc,nn
+				MCycles <= "101";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 3 =>
+					Inc_PC <= '1';
+					LDW <= '1';
+					if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
+						IncDec_16 <= "1111";
+						Set_Addr_TO <= aSP;
+						TStates <= "100";
+						Set_BusB_To <= "1101";
+					else
+						MCycles <= "011";
+					end if;
+				when 4 =>
+					Write <= '1';
 					IncDec_16 <= "1111";
-					Set_Addr_TO <= aSP;
-					TStates <= "100";
-					Set_BusB_To <= "1101";
-				else
-					MCycles <= "011";
-				end if;
-			when 4 =>
-				Write <= '1';
-				IncDec_16 <= "1111";
-				Set_Addr_To <= aSP;
-				Set_BusB_To <= "1100";
-			when 5 =>
-				Write <= '1';
-				Call <= '1';
-			when others => null;
-			end case;
+					Set_Addr_To <= aSP;
+					Set_BusB_To <= "1100";
+				when 5 =>
+					Write <= '1';
+					Call <= '1';
+				when others => null;
+				end case;
+			end if;
 		when "11001001" =>
 			-- RET
 			MCycles <= "011";
@@ -961,25 +1157,94 @@ begin
 			when others => null;
 			end case;
 		when "11000000"|"11001000"|"11010000"|"11011000"|"11100000"|"11101000"|"11110000"|"11111000" =>
-			-- RET cc
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 1 =>
-				if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
-					Set_Addr_TO <= aSP;
-				else
-					MCycles <= "001";
-				end if;
-				TStates <= "101";
-			when 2 =>
-				IncDec_16 <= "0111";
-				Set_Addr_To <= aSP;
-				LDZ <= '1';
-			when 3 =>
-				Jump <= '1';
-				IncDec_16 <= "0111";
-			when others => null;
-			end case;
+			if IR(5) = '1' and Mode = 3 then
+				case IRB(4 downto 3) is
+				when "00" =>
+					-- LD ($FF00+nn),A
+					MCycles <= "011";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						Inc_PC <= '1';
+						Set_Addr_To <= aIOA;
+						Set_BusB_To	<= "0111";
+					when 3 =>
+						Write <= '1';
+					when others => null;
+					end case;
+				when "01" =>
+					-- ADD SP,n
+					MCycles <= "011";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						ALU_Op <= "1000";
+						Inc_PC <= '1';
+						Read_To_Reg <= '1';
+						Save_ALU <= '1';
+						Set_BusA_To <= "1000";
+						Set_BusB_To <= "0110";
+					when 3 =>
+						NoRead <= '1';
+						Read_To_Reg <= '1';
+						Save_ALU <= '1';
+						ALU_Op <= "1001";
+						Set_BusA_To <= "1001";
+						Set_BusB_To <= "1110";	-- Incorrect unsigned !!!!!!!!!!!!!!!!!!!!!
+					when others =>
+					end case;
+				when "10" =>
+					-- LD A,($FF00+nn)
+					MCycles <= "011";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						Inc_PC <= '1';
+						Set_Addr_To <= aIOA;
+					when 3 =>
+						Read_To_Acc <= '1';
+					when others => null;
+					end case;
+				when "11" =>
+					-- LD HL,SP+n	-- Not correct !!!!!!!!!!!!!!!!!!!
+					MCycles <= "101";
+					case to_integer(unsigned(MCycle)) is
+					when 2 =>
+						Inc_PC <= '1';
+						LDZ <= '1';
+					when 3 =>
+						Set_Addr_To <= aZI;
+						Inc_PC <= '1';
+						LDW <= '1';
+					when 4 =>
+						Set_BusA_To(2 downto 0) <= "101"; -- L
+						Read_To_Reg <= '1';
+						Inc_WZ <= '1';
+						Set_Addr_To <= aZI;
+					when 5 =>
+						Set_BusA_To(2 downto 0) <= "100"; -- H
+						Read_To_Reg <= '1';
+					when others => null;
+					end case;
+				end case;
+			else
+				-- RET cc
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 1 =>
+					if is_cc_true(F, to_bitvector(IR(5 downto 3))) then
+						Set_Addr_TO <= aSP;
+					else
+						MCycles <= "001";
+					end if;
+					TStates <= "101";
+				when 2 =>
+					IncDec_16 <= "0111";
+					Set_Addr_To <= aSP;
+					LDZ <= '1';
+				when 3 =>
+					Jump <= '1';
+					IncDec_16 <= "0111";
+				when others => null;
+				end case;
+			end if;
 		when "11000111"|"11001111"|"11010111"|"11011111"|"11100111"|"11101111"|"11110111"|"11111111" =>
 			-- RST p
 			MCycles <= "011";
@@ -1002,30 +1267,34 @@ begin
 
 -- INPUT AND OUTPUT GROUP
 		when "11011011" =>
-			-- IN A,(n)
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				Set_Addr_To <= aIOA;
-			when 3 =>
-				Read_To_Acc <= '1';
-				IORQ <= '1';
-			when others => null;
-			end case;
+			if Mode /= 3 then
+				-- IN A,(n)
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					Set_Addr_To <= aIOA;
+				when 3 =>
+					Read_To_Acc <= '1';
+					IORQ <= '1';
+				when others => null;
+				end case;
+			end if;
 		when "11010011" =>
-			-- OUT (n),A
-			MCycles <= "011";
-			case to_integer(unsigned(MCycle)) is
-			when 2 =>
-				Inc_PC <= '1';
-				Set_Addr_To <= aIOA;
-				Set_BusB_To	<= "0111";
-			when 3 =>
-				Write <= '1';
-				IORQ <= '1';
-			when others => null;
-			end case;
+			if Mode /= 3 then
+				-- OUT (n),A
+				MCycles <= "011";
+				case to_integer(unsigned(MCycle)) is
+				when 2 =>
+					Inc_PC <= '1';
+					Set_Addr_To <= aIOA;
+					Set_BusB_To	<= "0111";
+				when 3 =>
+					Write <= '1';
+					IORQ <= '1';
+				when others => null;
+				end case;
+			end if;
 
 ------------------------------------------------------------------------------
 ------------------------------------------------------------------------------
@@ -1077,7 +1346,7 @@ begin
 				-- SLA r
 				-- SRA r
 				-- SRL r
-				-- SLL r (Undocumented)
+				-- SLL r (Undocumented) / SWAP r
 				Rot_Op <= '1';
 				Read_To_Reg <= '1';
 				Save_ALU <= '1';
@@ -1089,7 +1358,7 @@ begin
 				-- SRA (HL)
 				-- SRL (HL)
 				-- SLA (HL)
-				-- SLL (HL) (Undocumented)
+				-- SLL (HL) (Undocumented) / SWAP (HL)
 				MCycles <= "011";
 				case to_integer(unsigned(MCycle)) is
 				when 1 =>
@@ -1099,9 +1368,9 @@ begin
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
 					Set_Addr_To <= aXY;
+					TStates <= "100";
 				when 3 =>
 					Write <= '1';
-					TStates <= "011";
 				when others =>
 				end case;
 			when "01000000"|"01000001"|"01000010"|"01000011"|"01000100"|"01000101"|"01000111"
@@ -1123,6 +1392,7 @@ begin
 					Set_Addr_To <= aXY;
 				when 2 =>
 					Bit_Op <= "01";
+					TStates <= "100";
 				when others => null;
 				end case;
 			when "11000000"|"11000001"|"11000010"|"11000011"|"11000100"|"11000101"|"11000111"
@@ -1148,6 +1418,7 @@ begin
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
 					Set_Addr_To <= aXY;
+					TStates <= "100";
 				when 3 =>
 					Write <= '1';
 				when others => null;
@@ -1175,6 +1446,7 @@ begin
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
 					Set_Addr_To <= aXY;
+					TStates <= "100";
 				when 3 =>
 					Write <= '1';
 				when others => null;
@@ -1328,7 +1600,7 @@ begin
 					else
 						IncDec_16 <= "1101";
 					end if;
-					if IR(4) = '1' and F(2) = '1' then
+					if IR(4) = '1' and F(Flag_P) = '1' then
 						MCycles <= "100";
 					end if;
 				when 4 =>
@@ -1360,7 +1632,7 @@ begin
 					NoRead <= '1';
 					I_BC <= '1';
 					TStates <= "101";
-					if IR(4) = '1' and F(2) = '1' and F(6) = '0' then
+					if IR(4) = '1' and F(Flag_P) = '1' and F(Flag_Z) = '0' then
 						MCycles <= "100";
 					end if;
 				when 4 =>
@@ -1404,6 +1676,7 @@ begin
 						when others =>
 						Set_BusB_To <= "1000";
 					end case;
+					TStates <= "100";
 				when 3 =>
 					NoRead <= '1';
 					Read_To_Reg <= '1';
@@ -1417,7 +1690,6 @@ begin
 					when others =>
 						Set_BusB_To <= "1001";
 					end case;
-					TStates <= "011";
 				when others =>
 				end case;
 			when "01000010"|"01010010"|"01100010"|"01110010" =>
@@ -1437,6 +1709,7 @@ begin
 					when others =>
 						Set_BusB_To <= "1000";
 					end case;
+					TStates <= "100";
 				when 3 =>
 					NoRead <= '1';
 					ALU_Op <= "1011";
@@ -1449,7 +1722,6 @@ begin
 					when others =>
 							Set_BusB_To <= "1001";
 					end case;
-					TStates <= "011";
 				when others =>
 				end case;
 			when "01101111" =>
@@ -1562,7 +1834,7 @@ begin
 					end if;
 					TStates <= "100";
 					Write <= '1';
-					if IR(4) = '1' and F(6) = '0' then
+					if IR(4) = '1' and F(Flag_Z) = '0' then
 						MCycles <= "100";
 					end if;
 				when 4 =>
@@ -1596,7 +1868,7 @@ begin
 					IORQ <= '1';
 					TStates <= "100";
 					Write <= '1';
-					if IR(4) = '1' and F(6) = '0' then
+					if IR(4) = '1' and F(Flag_Z) = '0' then
 						MCycles <= "100";
 					end if;
 				when 4 =>
@@ -1615,6 +1887,42 @@ begin
 --				TStates <= "100";
 			else
 				TStates <= "011";
+			end if;
+		end if;
+
+		if Mode = 3 then
+			if MCycle = "001" then
+--				TStates <= "100";
+			else
+				TStates <= "100";
+			end if;
+		end if;
+
+		if Mode < 2 then
+			if MCycle = "110" then
+				Inc_PC <= '1';
+				Set_Addr_To <= aNone;
+				if Mode = 1 then
+					TStates <= "100";
+					Set_Addr_To <= aXY;
+					Set_BusB_To(2 downto 0) <= SSS;
+					Set_BusB_To(3) <= '0';
+					if IRB = "00110110" or IRB = "11001011" then
+						Set_Addr_To <= aNone;
+					end if;
+				end if;
+			end if;
+			if MCycle = "111" then
+				TStates <= "101";
+				Set_Addr_To <= aXY;
+				Set_BusB_To(2 downto 0) <= SSS;
+				Set_BusB_To(3) <= '0';
+				if IRB = "00110110" then
+					-- LD (HL),n
+					Inc_PC <= '1';
+				else
+					NoRead <= '1';
+				end if;
 			end if;
 		end if;
 

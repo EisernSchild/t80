@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0238
+-- Version : 0240
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
 --
@@ -48,12 +48,25 @@
 --
 --	0238 : Fixed zero flag for 16 bit SBC and ADC
 --
+--	0240 : Added GB operations
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
 entity T80_ALU is
+	generic(
+		Mode : integer := 0;
+		Flag_C : integer := 0;
+		Flag_N : integer := 1;
+		Flag_P : integer := 2;
+		Flag_X : integer := 3;
+		Flag_H : integer := 4;
+		Flag_Y : integer := 5;
+		Flag_Z : integer := 6;
+		Flag_S : integer := 7
+	);
 	port(
 		Arith16		: in std_logic;
 		Z16			: in std_logic;
@@ -98,15 +111,6 @@ architecture rtl of T80_ALU is
 		Carry <= Res_i(A'length);
 		Res <= std_logic_vector(Res_i(A'length - 1 downto 0));
 	end;
-
-	constant Flag_C : integer := 0;
-	constant Flag_N : integer := 1;
-	constant Flag_P : integer := 2;
-	constant Flag_X : integer := 3;
-	constant Flag_H : integer := 4;
-	constant Flag_Y : integer := 5;
-	constant Flag_Z : integer := 6;
-	constant Flag_S : integer := 7;
 
 	-- Micro code outputs
 	signal AALU_Op : std_logic_vector(2 downto 0);
@@ -321,10 +325,16 @@ begin
 				Q_t(7 downto 1) := BusA(6 downto 0);
 				Q_t(0) := '0';
 				F_Out(Flag_C) <= BusA(7);
-			when "110" => -- SLL (Undocumented)
-				Q_t(7 downto 1) := BusA(6 downto 0);
-				Q_t(0) := '1';
-				F_Out(Flag_C) <= BusA(7);
+			when "110" => -- SLL (Undocumented) / SWAP
+				if Mode = 3 then
+					Q_t(7 downto 4) := BusA(3 downto 0);
+					Q_t(3 downto 0) := BusA(7 downto 4);
+					F_Out(Flag_C) <= '0';
+				else
+					Q_t(7 downto 1) := BusA(6 downto 0);
+					Q_t(0) := '1';
+					F_Out(Flag_C) <= BusA(7);
+				end if;
 			when "101" => -- SRA
 				Q_t(6 downto 0) := BusA(7 downto 1);
 				Q_t(7) := BusA(7);

@@ -3,7 +3,7 @@
 -- Different timing than the original 8080
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0238
+-- Version : 0240
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -51,6 +51,8 @@
 --
 --	0238 : Updated for T80 interface change
 --
+--	0240 : Updated for T80 interface change
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -83,7 +85,6 @@ end T8080se;
 
 architecture rtl of T8080se is
 
-	signal False_M1		: std_logic;
 	signal IntCycle_n	: std_logic;
 	signal NoRead		: std_logic;
 	signal Write		: std_logic;
@@ -140,7 +141,6 @@ begin
 			DO => DO_i,
 			MC => MCycle,
 			TS => TState,
-			False_M1 => False_M1,
 			IntCycle_n => IntCycle_n,
 			IntE => INTE);
 
@@ -154,7 +154,7 @@ begin
 			if CLKEN = '1' then
 				DBIN <= '0';
 				WR_n <= '1';
-				if MCycle = "001" and False_M1 = '0' then
+				if MCycle = "001" then
 					if TState = "001" or (TState = "010" and READY = '0') then
 						DBIN <= IntCycle_n;
 					end if;

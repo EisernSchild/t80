@@ -3,7 +3,7 @@
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0238
+-- Version : 0240
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -60,6 +60,8 @@
 --
 --	0238 : Updated for T80 interface change
 --
+--	0240 : Updated for T80 interface change
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -95,7 +97,6 @@ end T80s;
 architecture rtl of T80s is
 
 	signal CEN			: std_logic;
-	signal False_M1		: std_logic;
 	signal IntCycle_n	: std_logic;
 	signal NoRead		: std_logic;
 	signal Write		: std_logic;
@@ -132,7 +133,6 @@ begin
 			DO => DO,
 			MC => MCycle,
 			TS => TState,
-			False_M1 => False_M1,
 			IntCycle_n => IntCycle_n);
 
 	process (RESET_n, CLK_n)
@@ -148,7 +148,7 @@ begin
 			WR_n <= '1';
 			IORQ_n <= '1';
 			MREQ_n <= '1';
-			if MCycle = "001" and False_M1 = '0' then
+			if MCycle = "001" then
 				if TState = "001" or (TState = "010" and Wait_n = '0') then
 					RD_n <= not IntCycle_n;
 					MREQ_n <= not IntCycle_n;
