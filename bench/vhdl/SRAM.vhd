@@ -1,7 +1,7 @@
 --
 -- Simple SRAM model without timing
 --
--- Version : 0240
+-- Version : 0241
 --
 -- Copyright (c) 2001 Daniel Wallner (jesus@opencores.org)
 --
@@ -65,8 +65,8 @@ end SRAM;
 
 architecture behaviour of SRAM is
 
-	type Memory_Image is array (natural range <>) of std_logic_vector(Data_Width - 1 downto 0);
-	signal RAM : Memory_Image(0 to 2 ** Addr_Width - 1);
+	type Memory_Image is array (natural range <>) of std_logic_vector(DataWidth - 1 downto 0);
+	signal RAM : Memory_Image(0 to 2 ** AddrWidth - 1);
 
 	signal Write : std_logic;
 	signal D_del : std_logic_vector(7 downto 0);
