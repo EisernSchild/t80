@@ -5,5 +5,5 @@
 ../../../rtl/vhdl/T80s.vhd
 ../../../rtl/vhdl/T16450.vhd
 ../src/MonZ80.vhd
-../../../rtl/vhdl/SSRAM.vhd
+../../../rtl/vhdl/SSRAMX.vhd
 ../../../rtl/vhdl/DebugSystem.vhd
