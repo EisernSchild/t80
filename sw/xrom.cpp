@@ -1,7 +1,7 @@
 //
 // Xilinx VHDL ROM generator
 //
-// Version : 0221
+// Version : 0241
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -49,6 +49,8 @@
 // 0220 : Initial release
 //
 // 0221 : Fixed block ROMs with partial bytes
+//
+// 0241 : Updated for WebPack 5.1
 
 #include <stdio.h>
 #include <string>
@@ -64,7 +66,7 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0221\n";
+	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0241\n";
 
 	try
 	{
@@ -227,7 +229,7 @@ int main (int argc, char *argv[])
 			{
 				printf("s");
 			}
-			printf("D(I), A_r(0), A_r(1), A_r(2), A_r(3));");
+			printf("WE => '0', WCLK => '0', D => '0', O => D(I), A0 => A_r(0), A1 => A_r(1), A2 => A_r(2), A3 => A_r(3));");
 			printf("\n\tend generate;");
 		}
 		if (selectIter > 1)
@@ -235,7 +237,7 @@ int main (int argc, char *argv[])
 			printf("\n\n\tsiA_r <= to_integer(A_r(A'left downto 4));");
 			printf("\n\n\tsG1: for I in 0 to %d generate", selectIter - 1);
 			printf("\n\t\tsG2: for J in 0 to %d generate", dWidth - 1);
-			printf("\n\t\t\tS%s : LUT4\n\t\t\t\tport map (sRAMOut(I)(J), A_r(0), A_r(1), A_r(2), A_r(3));", argv[1]);
+			printf("\n\t\t\tS%s : RAM16X1S\n\t\t\t\tport map (WE => '0', WCLK => '0', D => '0', O => sRAMOut(I)(J), A0 => A_r(0), A1 => A_r(1), A2 => A_r(2), A3 => A_r(3));", argv[1]);
 			printf("\n\t\tend generate;");
 			if (z == 'z')
 			{
@@ -270,7 +272,7 @@ int main (int argc, char *argv[])
 		{
 			printf("\n\n\tbG1: for J in 0 to %d generate", bytes - 1);
 			printf("\n\t\tB%s : RAMB4_S8", argv[1]);
-			printf("\n\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), bRAMOut(7 + 8 * J downto 8 * J));", argv[1]);
+			printf("\n\t\t\tport map (DI => \"00000000\", EN => '1', RST => '0', WE => '0', CLK => Clk, ADDR => A(8 downto 0), DO => bRAMOut(7 + 8 * J downto 8 * J));", argv[1]);
 			printf("\n\tend generate;");
 			printf("\n\n\t");
 			if (selectIter)
@@ -284,7 +286,7 @@ int main (int argc, char *argv[])
 			printf("\n\n\tbiA_r <= to_integer(A_r(A'left downto 9));");
 			printf("\n\n\tbG1: for I in %d to %d generate", blockTotal - blockIter, blockTotal - 1);
 			printf("\n\t\tbG2: for J in 0 to %d generate", bytes - 1);
-			printf("\n\t\t\tB%s : RAMB4_S8\n\t\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), bRAMOut(I)(7 + 8 * J downto 8 * J));", argv[1]);
+			printf("\n\t\t\tB%s : RAMB4_S8\n\t\t\t\tport map (DI => \"00000000\", EN => '1', RST => '0', WE => '0', CLK => Clk, ADDR => A(8 downto 0), DO => bRAMOut(I)(7 + 8 * J downto 8 * J));", argv[1]);
 			printf("\n\t\tend generate;");
 			if (z == 'z')
 			{
