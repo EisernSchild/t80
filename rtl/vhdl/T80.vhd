@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0232
+-- Version : 0235
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -56,6 +56,9 @@
 --	0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
 --
 --	0232 : Removed refresh address output for Mode > 1 and added DJNZ M1_n fix by Mike Johnson
+--
+--	0235 : Added clock enable and IM 2 fix by Mike Johnson
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -69,6 +72,7 @@ entity T80 is
 	port(
 		RESET_n		: in std_logic;
 		CLK_n		: in std_logic;
+		CEN			: in std_logic;
 		WAIT_n		: in std_logic;
 		INT_n		: in std_logic;
 		NMI_n		: in std_logic;
@@ -312,6 +316,8 @@ begin
 
 		elsif CLK_n'event and CLK_n = '1' then
 
+			if CEN = '1' then
+
 			Arith16_r <= '0';
 			ALU_Op_r <= "0000";
 			Rot_Op_r <= '0';
@@ -403,10 +409,9 @@ begin
 					elsif MCycle = MCycles and NMICycle = '1' then
 						A <= "0000000001100110";
 						PC <= "0000000001100110";
-					elsif MCycle = MCycles and IntCycle = '1' and IStatus = "10" then
+					elsif MCycle = "011" and IntCycle = '1' and IStatus = "10" then
 						A(15 downto 8) <= I;
-						A(7 downto 1) <= TmpAddr(7 downto 1);
-						A(0) <= '0';
+						A(7 downto 0) <= TmpAddr(7 downto 0);
 						PC(15 downto 8) <= unsigned(I);
 						PC(7 downto 0) <= unsigned(TmpAddr(7 downto 0));
 					else
@@ -754,6 +759,8 @@ begin
 
 		end if;
 
+		end if;
+
 	end process;
 
 ---------------------------------------------------------------------------
@@ -764,6 +771,7 @@ begin
 	process (CLK_n)
 	begin
 		if CLK_n'event and CLK_n = '1' then
+			if CEN = '1' then
 			case Set_BusB_To is
 			when "0111" =>
 				BusB <= ACC;
@@ -871,6 +879,7 @@ begin
 			end case;
 
 		end if;
+		end if;
 	end process;
 
 ---------------------------------------------------------------------------
@@ -884,10 +893,12 @@ begin
 		if RESET_n = '0' then
 			RFSH_n <= '1';
 		elsif CLK_n'event and CLK_n = '1' then
+			if CEN = '1' then
 			if MCycle = "001" and ((TState = 2  and Wait_n = '1') or TState = 3) then
 				RFSH_n <= '0';
 			else
 				RFSH_n <= '1';
+			end if;
 			end if;
 		end if;
 	end process;
@@ -904,11 +915,13 @@ begin
 		if RESET_n = '0' then
 			M1_n <= '0';
 		elsif CLK_n'event and CLK_n = '1' then
+			if CEN = '1' then
 			if T_Res = '1' and (MCycle = MCycles or (MCycle = "010" and I_DJNZ = '1' and B = "00000000")) then
 				M1_n <= '0';
 			end if;
 			if MCycle = "001" and TState = 2 and Wait_n = '1' then
 				M1_n <= '1';
+			end if;
 			end if;
 		end if;
 	end process;
@@ -926,6 +939,7 @@ begin
 			NMI_s <= '0';
 			OldNMI_n := '0';
 		elsif CLK_n'event and CLK_n = '1' then
+			if CEN = '1' then
 			INT_s <= not INT_n;
 			if NMICycle = '1' then
 				NMI_s <= '0';
@@ -933,6 +947,7 @@ begin
 				NMI_s <= '1';
 			end if;
 			OldNMI_n := NMI_n;
+			end if;
 		end if;
 	end process;
 
@@ -955,6 +970,7 @@ begin
 			IntE_FF1 <= '0';
 			IntE_FF2 <= '0';
 		elsif CLK_n'event and CLK_n = '1' then   -- CLK_n is the clock signal
+			if CEN = '1' then
 			if TState = 2 then
 				if SetEI = '1' then
 					IntE_FF1 <= '1';
@@ -1011,6 +1027,7 @@ begin
 				else
 					TState <= TState + 1;
 				end if;
+			end if;
 			end if;
 		end if;
 	end process;

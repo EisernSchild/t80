@@ -1,9 +1,9 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0214
+-- Version : 0235
 --
--- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
+-- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
 -- All rights reserved
 --
@@ -38,7 +38,7 @@
 -- you have the latest version of this file.
 --
 -- The latest version of this file can be found at:
---	http://hem.passagen.se/dwallner/vhdl.html
+--	http://www.opencores.org/cvsweb.shtml/t80/
 --
 -- Limitations :
 --
@@ -57,6 +57,7 @@ package T80_Pack is
 	port(
 		RESET_n		: in std_logic;
 		CLK_n		: in std_logic;
+		CEN			: in std_logic;
 		WAIT_n		: in std_logic;
 		INT_n		: in std_logic;
 		NMI_n		: in std_logic;

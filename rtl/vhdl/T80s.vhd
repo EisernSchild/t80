@@ -3,9 +3,9 @@
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0211
+-- Version : 0235
 --
--- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
+-- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
 -- All rights reserved
 --
@@ -40,7 +40,7 @@
 -- you have the latest version of this file.
 --
 -- The latest version of this file can be found at:
---	http://hem.passagen.se/dwallner/vhdl.html
+--	http://www.opencores.org/cvsweb.shtml/t80/
 --
 -- Limitations :
 --
@@ -51,6 +51,8 @@
 --	0210 : Fixed read with wait
 --
 --	0211 : Fixed interrupt cycle
+--
+--	0235 : Updated for T80 interface change
 --
 
 library IEEE;
@@ -85,6 +87,7 @@ end T80s;
 
 architecture rtl of T80s is
 
+	signal CEN			: std_logic;
 	signal False_M1		: std_logic;
 	signal IntCycle_n	: std_logic;
 	signal Write		: std_logic;
@@ -95,10 +98,13 @@ architecture rtl of T80s is
 
 begin
 
+	CEN <= '1';
+
 	u0 : T80
 		generic map(
 			Mode => Mode)
 		port map(
+			CEN => CEN,
 			M1_n => M1_n,
 			IORQ => IORQ,
 			Write => Write,

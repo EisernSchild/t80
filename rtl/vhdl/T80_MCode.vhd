@@ -1,9 +1,9 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0214
+-- Version : 0235
 --
--- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
+-- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
 -- All rights reserved
 --
@@ -38,7 +38,7 @@
 -- you have the latest version of this file.
 --
 -- The latest version of this file can be found at:
---	http://hem.passagen.se/dwallner/vhdl.html
+--	http://www.opencores.org/cvsweb.shtml/t80/
 --
 -- Limitations :
 --
@@ -49,6 +49,8 @@
 --	0211 : Fixed IM 1
 --
 --	0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
+--
+--	0235 : Added IM 2 fix by Mike Johnson
 --
 
 library IEEE;
@@ -663,7 +665,7 @@ begin
 				end case;
 			elsif IntCycle = '1' then
 				-- INT (IM 2)
-				MCycles <= "011";
+				MCycles <= "101";
 				case to_integer(unsigned(MCycle)) is
 				when 1 =>
 					LDZ <= '1';
@@ -680,6 +682,11 @@ begin
 				when 3 =>
 					TStates <= "100";
 					Write <= '1';
+				when 4 =>
+					Inc_PC <= '1';
+					LDZ <= '1';
+				when 5 =>
+					Jump <= '1';
 				when others => null;
 				end case;
 			else
