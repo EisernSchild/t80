@@ -3,7 +3,7 @@
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0235
+-- Version : 0236
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -54,6 +54,8 @@
 --
 --	0235 : Updated for T80 interface change
 --
+--	0236 : Added T2Write generic
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -62,7 +64,8 @@ use work.T80_Pack.all;
 
 entity T80s is
 	generic(
-		Mode : integer := 0	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
+		Mode : integer := 0;	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
+		T2Write : integer := 0	-- 0 => WR_n active in T3, /=0 => WR_n active in T2
 	);
 	port(
 		RESET_n		: in std_logic;
@@ -154,10 +157,18 @@ begin
 					IORQ_n <= not IORQ;
 					MREQ_n <= IORQ;
 				end if;
-				if TState = "010" and Write = '1' then
-					WR_n <= '0';
-					IORQ_n <= not IORQ;
-					MREQ_n <= IORQ;
+				if T2Write = 0 then
+					if TState = "010" and Write = '1' then
+						WR_n <= '0';
+						IORQ_n <= not IORQ;
+						MREQ_n <= IORQ;
+					end if;
+				else
+					if TState = "001" and Write = '1' then
+						WR_n <= '0';
+						IORQ_n <= not IORQ;
+						MREQ_n <= IORQ;
+					end if;
 				end if;
 			end if;
 			if TState = "010" and Wait_n = '1' then
