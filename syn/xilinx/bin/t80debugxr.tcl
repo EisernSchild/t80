@@ -5,8 +5,8 @@ set opt_auto_mode "TRUE"
 set opt_best_result "29223.458000"
 set dont_lock_lcells "auto"
 set input2output "50.000000"
-set input2register "50.000000"
-set register2output "50.000000"
+set input2register "20.000000"
+set register2output "20.000000"
 set register2register "50.000000"
 set wire_table "xis215-5_avg"
 set encoding "auto"
@@ -26,8 +26,7 @@ read -technology xis2 {
 ../../../rtl/vhdl/T80s.vhd
 ../../../rtl/vhdl/T16450.vhd
 ../src/MonZ80_leo.vhd
-../../../rtl/vhdl/SSRAM2.vhd
-../../../rtl/vhdl/DebugSystem.vhd
+../../../rtl/vhdl/DebugSystemXR.vhd
 }
 
 pre_optimize
@@ -40,4 +39,4 @@ report_area
 
 report_delay
 
-write t80debug_leo.edf
+write t80debugxr_leo.edf

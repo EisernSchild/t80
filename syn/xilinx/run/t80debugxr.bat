@@ -1,4 +1,4 @@
-set name=t80debug
+set name=t80debugxr
 rem set target=xc2v250-cs144-6
 rem set target=xcv300e-pq240-8
 set target=xc2s200-pq208-5
@@ -11,9 +11,9 @@ cd ..\out
 
 if "%1" == "" goto xst
 
-set name=t80debug_leo
+set name=t80debugxr_leo
 
-copy ..\bin\t80debug.pin %name%.ucf
+copy ..\bin\t80debugxr_leo.pin %name%.ucf
 
 ngdbuild -p %target% %1 %name%.ngd
 
@@ -22,7 +22,7 @@ goto builddone
 :xst
 
 xrom MonZ80 11 8 > ..\src\MonZ80.vhd
-hex2rom ..\..\..\sw\monitor.hex MonZ80 11b8u > MonZ80.ini
+hex2rom ..\..\..\sw\monitorxr.hex MonZ80 11b8u > MonZ80.ini
 copy ..\out\MonZ80.ini + ..\bin\%name%.pin %name%.ucf
 
 xst -ifn ../bin/%name%.scr -ofn ../log/%name%.srp

@@ -1,6 +1,6 @@
 cd ..\out
 
-hex2rom -b ..\..\..\sw\sine.bin MonZ80 11b8s > ..\src\MonZ80_Sine_leo.vhd
+hex2rom ..\..\..\sw\monitor.hex MonZ80 11b8s > ..\src\MonZ80_leo.vhd
 
 spectrum -file ..\bin\t80debug.tcl
 move exemplar.log ..\log\t80debug_leo.srp
