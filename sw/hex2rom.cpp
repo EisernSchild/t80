@@ -1,7 +1,7 @@
 //
-// Binary and intel/motorola hex to VHDL ROM entity converter
+// Binary and intel/motorola hex to VHDL ROM converter
 //
-// Version : 0215
+// Version : 0220
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -53,6 +53,8 @@
 // 0208 : Changed some errors to warnings
 //
 // 0215 : Added support for synchronous ROM
+//
+// 0220 : Changed array ROM format, added support for Xilinx .UCF generation
 //
 
 #include <stdio.h>
@@ -583,7 +585,7 @@ private:
 
 int main (int argc, char *argv[])
 {
-	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0215\n";
+	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0220\n";
 
 	try
 	{
@@ -597,14 +599,16 @@ int main (int argc, char *argv[])
 			cerr << "\nUsage: hex2rom [-b] <input file> <entity name> <format>\n";
 			cerr << "\nIf the -b option is specified the file is read as a binary file\n";
 			cerr << "Hex input files must be intel hex or motorola s-record\n";
-			cerr << "\nThe format string has the format AEDO where:\n";
+			cerr << "\nThe format string has the format AEDOS where:\n";
 			cerr << "  A = Address bits\n";
 			cerr << "  E = Endianness, l or b\n";
 			cerr << "  D = Data bits\n";
 			cerr << "  O = ROM type: (one optional character)\n";
 			cerr << "      z for tri-state output\n";
-			cerr << "      a for array ROM \n";
-			cerr << "      s for synchronous ROM \n";
+			cerr << "      a for array ROM\n";
+			cerr << "      s for synchronous ROM\n";
+			cerr << "      u for xilinx ucf\n";
+			cerr << "  S = SelectRAM usage in 1/16 parts (only used when O = u)\n";
 			cerr << "\nExample:\n";
 			cerr << "  hex2rom test.hex Test_ROM 18b16z\n\n";
 			return -1;
@@ -614,44 +618,30 @@ int main (int argc, char *argv[])
 		string	outFileName;
 
 		unsigned long	bytes;
+		unsigned long	select = 0;
 
-		if (argc == 4)
-		{
-			int result;
-			result = sscanf(argv[3], "%lu%c%lu%c", &aWidth, &endian, &dWidth, &O);
-			if (result < 3)
-			{
-				throw "Error in output format argument!\n";
-			}
-
-			if (aWidth > 32 || (endian != 'l' && endian != 'b') || dWidth > 32 || (result > 3 && O != 'z' && O != 'a' && O != 's'))
-			{
-				throw "Error in output format argument!\n";
-			}
-			inFileName = argv[1];
-			outFileName = argv[2];
-		}
-		else
+		if (argc == 5)
 		{
 			if (strcmp(argv[1], "-b"))
 			{
 				throw "Error in arguments!\n";
 			}
-
-			int result;
-			result = sscanf(argv[4], "%lu%c%lu%c", &aWidth, &endian, &dWidth, &O);
-			if (result < 3)
-			{
-				throw "Error in output format argument!\n";
-			}
-
-			if (aWidth > 32 || (endian != 'l' && endian != 'b') || dWidth > 32 || (result > 3 && O != 'z' && O != 'a' && O != 's'))
-			{
-				throw "Error in output format argument!\n";
-			}
-			inFileName = argv[2];
-			outFileName = argv[3];
 		}
+
+		int result;
+
+		result = sscanf(argv[argc - 1], "%lu%c%lu%c%lu", &aWidth, &endian, &dWidth, &O, &select);
+		if (result < 3)
+		{
+			throw "Error in output format argument!\n";
+		}
+
+		if (aWidth > 32 || (endian != 'l' && endian != 'b') || dWidth > 32 || (result > 3 && O != 'z' && O != 'a' && O != 's' && O != 'u'))
+		{
+			throw "Error in output format argument!\n";
+		}
+		inFileName = argv[argc - 3];
+		outFileName = argv[argc - 2];
 
 		bytes = (dWidth + 7) / 8;
 
@@ -666,9 +656,6 @@ int main (int argc, char *argv[])
 			inFile.ReadBin((1UL << aWidth) * bytes - 1);
 		}
 
-		string outFileNameWE = outFileName + ".vhd";
-		File	outFile(outFileNameWE.c_str(), "wt");
-
 		string				line;
 
 		unsigned long	words = 1;
@@ -681,110 +668,238 @@ int main (int argc, char *argv[])
 			words <<= 1;
 		}
 
-		fprintf(outFile.Handle(), "-- This file was generated with hex2rom written by Daniel Wallner\n");
-		fprintf(outFile.Handle(), "\nlibrary IEEE;");
-		fprintf(outFile.Handle(), "\nuse IEEE.std_logic_1164.all;");
-		fprintf(outFile.Handle(), "\nuse IEEE.numeric_std.all;");
-		fprintf(outFile.Handle(), "\n\nentity %s is", outFileName.c_str());
-		fprintf(outFile.Handle(), "\n\tport(");
-		if (O == 'z')
+		if (O != 'u')
 		{
-			fprintf(outFile.Handle(), "\n\t\tCE_n\t: in std_logic;", dWidth - 1);
-			fprintf(outFile.Handle(), "\n\t\tOE_n\t: in std_logic;", dWidth - 1);
-		}
-		if (O == 's')
-		{
-			fprintf(outFile.Handle(), "\n\t\tClk\t: in std_logic;", dWidth - 1);
-		}
-		fprintf(outFile.Handle(), "\n\t\tA\t: in std_logic_vector(%d downto 0);", aWidth - 1);
-		fprintf(outFile.Handle(), "\n\t\tD\t: out std_logic_vector(%d downto 0)", dWidth - 1);
-		fprintf(outFile.Handle(), "\n\t);");
-		fprintf(outFile.Handle(), "\nend %s;", outFileName.c_str());
-		fprintf(outFile.Handle(), "\n\narchitecture rtl of %s is", outFileName.c_str());
-		if (!O)
-		{
-			fprintf(outFile.Handle(), "\nbegin");
-			fprintf(outFile.Handle(), "\n\tprocess (A)");
-			fprintf(outFile.Handle(), "\n\tbegin");
-			fprintf(outFile.Handle(), "\n\t\tcase to_integer(unsigned(A)) is");
-		}
-		else if (O == 's')
-		{
-			fprintf(outFile.Handle(), "\n\tsignal A_r : std_logic_vector(%d downto 0);", aWidth - 1);
-			fprintf(outFile.Handle(), "\nbegin");
-			fprintf(outFile.Handle(), "\n\tprocess (Clk)");
-			fprintf(outFile.Handle(), "\n\tbegin");
-			fprintf(outFile.Handle(), "\n\t\tif Clk'event and Clk = '1' then");
-			fprintf(outFile.Handle(), "\n\t\t\tA_r <= A;");
-			fprintf(outFile.Handle(), "\n\t\tend if;");
-			fprintf(outFile.Handle(), "\n\tend process;");
-			fprintf(outFile.Handle(), "\n\tprocess (A_r)");
-			fprintf(outFile.Handle(), "\n\tbegin");
-			fprintf(outFile.Handle(), "\n\t\tcase to_integer(unsigned(A_r)) is");
-		}
-		else
-		{
-			fprintf(outFile.Handle(), "\n\tsubtype ROM_WORD is std_logic_vector(%d downto 0);", dWidth - 1);
-			fprintf(outFile.Handle(), "\n\ttype ROM_TABLE is array(0 to %d) of ROM_WORD;", words - 1);
-			fprintf(outFile.Handle(), "\n\tconstant ROM: ROM_TABLE := ROM_TABLE'(");
-		}
-
-		string str;
-		string strDC;
-		for (i = 0; i < dWidth; i++)
-		{
-			strDC.insert(0, "-");
-		}
-		for (i = 0; i < words; i++)
-		{
-			if (!inFile.BitString(i * bytes, dWidth, endian == 'l', str))
+			printf("-- This file was generated with hex2rom written by Daniel Wallner\n");
+			printf("\nlibrary IEEE;");
+			printf("\nuse IEEE.std_logic_1164.all;");
+			printf("\nuse IEEE.numeric_std.all;");
+			printf("\n\nentity %s is", outFileName.c_str());
+			printf("\n\tport(");
+			if (O == 'z')
 			{
-				str = strDC;
+				printf("\n\t\tCE_n\t: in std_logic;", dWidth - 1);
+				printf("\n\t\tOE_n\t: in std_logic;", dWidth - 1);
 			}
-			if (!O || O == 's')
+			if (O == 's')
 			{
-				if (inFile.m_top / bytes >= i)
-				{
-					fprintf(outFile.Handle(),
-							"\n\t\twhen %06d => D <= \"%s\";",i, str.c_str());
-					fprintf(outFile.Handle(), "\t-- 0x%04X", i * bytes);
-				}
+				printf("\n\t\tClk\t: in std_logic;", dWidth - 1);
+			}
+			printf("\n\t\tA\t: in std_logic_vector(%d downto 0);", aWidth - 1);
+			printf("\n\t\tD\t: out std_logic_vector(%d downto 0)", dWidth - 1);
+			printf("\n\t);");
+			printf("\nend %s;", outFileName.c_str());
+			printf("\n\narchitecture rtl of %s is", outFileName.c_str());
+			if (!O)
+			{
+				printf("\nbegin");
+				printf("\n\tprocess (A)");
+				printf("\n\tbegin");
+				printf("\n\t\tcase to_integer(unsigned(A)) is");
+			}
+			else if (O == 's')
+			{
+				printf("\n\tsignal A_r : std_logic_vector(%d downto 0);", aWidth - 1);
+				printf("\nbegin");
+				printf("\n\tprocess (Clk)");
+				printf("\n\tbegin");
+				printf("\n\t\tif Clk'event and Clk = '1' then");
+				printf("\n\t\t\tA_r <= A;");
+				printf("\n\t\tend if;");
+				printf("\n\tend process;");
+				printf("\n\tprocess (A_r)");
+				printf("\n\tbegin");
+				printf("\n\t\tcase to_integer(unsigned(A_r)) is");
 			}
 			else
 			{
-				fprintf(outFile.Handle(), "\n\t\tROM_WORD'(\"%s", str.c_str());
-				if (i != words - 1)
+				printf("\n\tsubtype ROM_WORD is std_logic_vector(%d downto 0);", dWidth - 1);
+				printf("\n\ttype ROM_TABLE is array(0 to %d) of ROM_WORD;", words - 1);
+				printf("\n\tconstant ROM: ROM_TABLE := ROM_TABLE'(");
+			}
+
+			string str;
+			string strDC;
+			for (i = 0; i < dWidth; i++)
+			{
+				strDC.insert(0, "-");
+			}
+			for (i = 0; i < words; i++)
+			{
+				if (!inFile.BitString(i * bytes, dWidth, endian == 'l', str))
 				{
-					fprintf(outFile.Handle(), "\"),");
+					str = strDC;
+				}
+				if (!O || O == 's')
+				{
+					if (inFile.m_top / bytes >= i)
+					{
+						printf("\n\t\twhen %06d => D <= \"%s\";",i, str.c_str());
+						printf("\t-- 0x%04X", i * bytes);
+					}
 				}
 				else
 				{
-					fprintf(outFile.Handle(), "\"));");
+					printf("\n\t\t\"%s", str.c_str());
+					if (i != words - 1)
+					{
+						printf("\",");
+					}
+					else
+					{
+						printf("\");");
+					}
+					printf("\t-- 0x%04X", i * bytes);
 				}
-				fprintf(outFile.Handle(), "\t-- 0x%04X", i * bytes);
 			}
-		}
 
-		if (!O || O == 's')
-		{
-			fprintf(outFile.Handle(), "\n\t\twhen others => D <= \"%s\";", strDC.c_str());
-			fprintf(outFile.Handle(), "\n\t\tend case;");
-			fprintf(outFile.Handle(), "\n\tend process;");
-		}
-		else
-		{
-			fprintf(outFile.Handle(), "\nbegin");
-			if (O == 'z')
+			if (!O || O == 's')
 			{
-				fprintf(outFile.Handle(), "\n\tD <= ROM(to_integer(unsigned(A))) when CE_n = '0' and OE_n = '0' else (others => 'Z');");
+				printf("\n\t\twhen others => D <= \"%s\";", strDC.c_str());
+				printf("\n\t\tend case;");
+				printf("\n\tend process;");
 			}
 			else
 			{
-				fprintf(outFile.Handle(), "\n\tD <= ROM(to_integer(unsigned(A)));");
+				printf("\nbegin");
+				if (O == 'z')
+				{
+					printf("\n\tD <= ROM(to_integer(unsigned(A))) when CE_n = '0' and OE_n = '0' else (others => 'Z');");
+				}
+				else
+				{
+					printf("\n\tD <= ROM(to_integer(unsigned(A)));");
+				}
 			}
+			printf("\nend;\n");
 		}
-		fprintf(outFile.Handle(), "\nend;\n");
+		else
+		{
+			unsigned long selectIter = 0;
+			unsigned long blockIter = 0;
 
+			if (!select)
+			{
+				blockIter = ((1UL << aWidth) + 511) / 512;
+			}
+			else if (select == 16)
+			{
+				selectIter = ((1UL << aWidth) + 15) / 16;
+			}
+			else
+			{
+				blockIter = ((1UL << aWidth) * (16 - select) / 16 + 511) / 512;
+				selectIter = ((1UL << aWidth) - blockIter * 512 + 15) / 16;
+			}
+
+			cerr << "Creating .ucf file with " << selectIter * bytes;
+			cerr << " LUTs and "  << blockIter * bytes << " block RAMs\n";
+
+			unsigned long blockTotal = ((1UL << aWidth) + 511) / 512;
+
+			printf("# This file was generated with hex2rom written by Daniel Wallner\n");
+
+			for (i = 0; i < selectIter; i++)
+			{
+				unsigned long base = i * 16 * bytes;
+				unsigned long j;
+				unsigned char c;
+				unsigned long pos;
+
+				// Check that there is any actual data in segment
+				bool init = false;
+				for (pos = 0; pos < bytes * 16; pos++)
+				{
+					init = inFile.GetByte(base + pos, c);
+					if (init)
+					{
+						break;
+					}
+				}
+
+				if (init)
+				{
+					for (j = 0; j < dWidth; j++)
+					{
+						unsigned long bitMask = 1;
+						unsigned long bits = 0;
+
+						for (pos = 0; pos < 16; pos++)
+						{
+							unsigned long addr;
+
+							if (endian = 'l')
+							{
+								addr = base + bytes * pos + j / 8;
+							}
+							else
+							{
+								addr = base + bytes * pos + bytes - j / 8 - 1;
+							}
+
+							c = 0;
+							inFile.GetByte(addr, c);
+							if (c & (1 << (j % 8)))
+							{
+								bits |= bitMask;
+							}
+							bitMask <<= 1;
+						}
+						printf("\nINST *s%s%d%d INIT = %04X;", outFileName.c_str(), i, j, bits);
+					}
+				}
+			}
+
+			for (i = blockTotal - blockIter; i < blockTotal; i++)
+			{
+				unsigned long j;
+				for (j = 0; j < bytes; j++)
+				{
+					unsigned long k;
+					for (k = 0; k < 16; k++)
+					{
+						unsigned long base = i * 512 * bytes + j + k * 32 * bytes;
+						unsigned char c;
+						unsigned long pos;
+
+						// Check that there is any actual data in segment
+						bool init = false;
+						for (pos = 0; pos < 32; pos++)
+						{
+							init = inFile.GetByte(base + bytes * pos + j, c);
+							if (init)
+							{
+								break;
+							}
+						}
+
+						if (init)
+						{
+							printf("\nINST *b%s%d%d INIT_%02X = ", outFileName.c_str(), i, j, k);
+							for (pos = 0; pos < 32; pos++)
+							{
+								unsigned long addr;
+
+								if (endian = 'l')
+								{
+									addr = base + bytes * (31 - pos) + j;
+								}
+								else
+								{
+									addr = base + bytes * (31 - pos) + bytes - j - 1;
+								}
+
+								c = 0;
+								inFile.GetByte(addr, c);
+								printf("%02X", c);
+							}
+							printf(";");
+						}
+					}
+				}
+			}
+			printf("\n");
+		}
 		return 0;
 	}
 	catch (string error)

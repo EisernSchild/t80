@@ -41,6 +41,7 @@
 //	http://www.opencores.org/cvsweb.shtml/t51/
 //
 // Limitations :
+//	Not all address/data widths produce working code
 //	Requires stl to compile
 //
 // File history :
@@ -59,32 +60,6 @@ using namespace std;
 	// VC fix
 	#define max __max
 #endif
-
-class File
-{
-public:
-	explicit File(const char *fileName, const char *mode)
-	{
-		m_file = fopen(fileName, mode);
-		if (m_file != NULL)
-		{
-			return;
-		}
-		string errorStr = "Error opening ";
-		errorStr += fileName;
-		errorStr += "\n";
-		throw errorStr;
-	}
-
-	~File()
-	{
-		fclose(m_file);
-	}
-
-	FILE *Handle() { return m_file; };
-private:
-	FILE				*m_file;
-};
 
 int main (int argc, char *argv[])
 {
@@ -156,11 +131,6 @@ int main (int argc, char *argv[])
 			}
 		}
 
-		string	outFileName = argv[1];
-		outFileName = outFileName + ".vhd";
-
-		File	outFile(outFileName.c_str(), "wt");
-
 		unsigned long selectIter = 0;
 		unsigned long blockIter = 0;
 		unsigned long bytes = (dWidth + 7) / 8;
@@ -179,125 +149,171 @@ int main (int argc, char *argv[])
 			selectIter = ((1UL << aWidth) - blockIter * 512 + 15) / 16;
 		}
 
-		fprintf(outFile.Handle(), "-- This file was generated with xrom written by Daniel Wallner\n");
-		fprintf(outFile.Handle(), "\nlibrary IEEE;");
-		fprintf(outFile.Handle(), "\nuse IEEE.std_logic_1164.all;");
-		fprintf(outFile.Handle(), "\nuse IEEE.numeric_std.all;");
-		fprintf(outFile.Handle(), "\nlibrary UNISIM;");
-		fprintf(outFile.Handle(), "\nuse UNISIM.vcomponents.all;");
-		fprintf(outFile.Handle(), "\n\nentity %s is", argv[1]);
-		fprintf(outFile.Handle(), "\n\tport(");
-		fprintf(outFile.Handle(), "\n\t\tClk\t: in std_logic;");
-		fprintf(outFile.Handle(), "\n\t\tA\t: in std_logic_vector(%d downto 0);", aWidth - 1);
-		fprintf(outFile.Handle(), "\n\t\tD\t: out std_logic_vector(%d downto 0)", dWidth - 1);
-		fprintf(outFile.Handle(), "\n\t);");
-		fprintf(outFile.Handle(), "\nend %s;", outFileName.c_str());
-		fprintf(outFile.Handle(), "\n\narchitecture rtl of %s is", argv[1]);
+		unsigned long blockTotal = ((1UL << aWidth) + 511) / 512;
 
-		fprintf(outFile.Handle(), "\n\tsignal zero : std_logic := '0';");
-		fprintf(outFile.Handle(), "\n\tsignal DI : std_logic_vector(7 downto 0) := \"-------\";");
+		printf("-- This file was generated with xrom written by Daniel Wallner\n");
+		printf("\nlibrary IEEE;");
+		printf("\nuse IEEE.std_logic_1164.all;");
+		printf("\nuse IEEE.numeric_std.all;");
+		printf("\nlibrary UNISIM;");
+		printf("\nuse UNISIM.vcomponents.all;");
+		printf("\n\nentity %s is", argv[1]);
+		printf("\n\tport(");
+		printf("\n\t\tClk\t: in std_logic;");
+		printf("\n\t\tA\t: in std_logic_vector(%d downto 0);", aWidth - 1);
+		printf("\n\t\tD\t: out std_logic_vector(%d downto 0)", dWidth - 1);
+		printf("\n\t);");
+		printf("\nend %s;", argv[1]);
+		printf("\n\narchitecture rtl of %s is", argv[1]);
+
 		if (selectIter > 0)
 		{
-			fprintf(outFile.Handle(), "\n\tsignal A_r: unsigned(A'range);");
+			printf("\n\tsignal A_r: unsigned(A'range);");
 		}
 		if (selectIter > 1)
 		{
-			fprintf(outFile.Handle(), "\n\tsignal sEN : unsigned(%d downto 0);", selectIter - 1);
-			fprintf(outFile.Handle(), "\n\ttype sRAMOut is array (0 to %d) of UNSIGNED(D'range);", selectIter - 1);
-			fprintf(outFile.Handle(), "\n\tsignal sRAMOut : sRAMOut_a;");
-			fprintf(outFile.Handle(), "\n\tsignal siA, siA2 : integer;");
+			printf("\n\ttype sRAMOut_a is array(0 to %d) of std_logic_vector(D'range);", selectIter - 1);
+			printf("\n\tsignal sRAMOut : sRAMOut_a;");
+			printf("\n\tsignal siA_r : integer;");
+		}
+		if (selectIter && blockIter)
+		{
+			printf("\n\tsignal sD : std_logic_vector(D'range);");
 		}
 		if (blockIter > 1)
 		{
-			fprintf(outFile.Handle(), "\n\tsignal bEN : unsigned(%d downto 0);", blockIter - 1);
-			fprintf(outFile.Handle(), "\n\ttype bRAMOut_a is array (0 to %d) of UNSIGNED(D'range);", blockIter - 1);
-			fprintf(outFile.Handle(), "\n\tsignal bRAMOut : bRAMOut_a;");
-			fprintf(outFile.Handle(), "\n\tsignal biA, biA_r : integer;");
+			printf("\n\ttype bRAMOut_a is array(%d to %d) of std_logic_vector(D'range);", blockTotal - blockIter, blockTotal - 1);
+			printf("\n\tsignal bRAMOut : bRAMOut_a;");
+			printf("\n\tsignal biA_r : integer;");
 			if (!selectIter)
 			{
-				fprintf(outFile.Handle(), "\n\tsignal A_r: UNSIGNED(A'left downto 9);");
+				printf("\n\tsignal A_r : unsigned(A'left downto 9);");
 			}
 		}
+		if (selectIter && blockIter)
+		{
+			printf("\n\tsignal bD : std_logic_vector(D'range);");
+		}
 
-		fprintf(outFile.Handle(), "\nbegin");
+		printf("\nbegin");
 
 		if (selectIter > 0 || blockIter > 1)
 		{
-			fprintf(outFile.Handle(), "\n\tprocess (Clk)");
-			fprintf(outFile.Handle(), "\n\tbegin");
-			fprintf(outFile.Handle(), "\n\t\tif Clk'event and Clk = '1' then");
+			printf("\n\tprocess (Clk)");
+			printf("\n\tbegin");
+			printf("\n\t\tif Clk'event and Clk = '1' then");
 			if (!selectIter)
 			{
-				fprintf(outFile.Handle(), "\n\t\t\tA_r <= A(A'left downto 9);");
+				printf("\n\t\t\tA_r <= unsigned(A(A'left downto 9));");
 			}
 			else
 			{
-				fprintf(outFile.Handle(), "\n\t\t\tA_r <= A;");
+				printf("\n\t\t\tA_r <= unsigned(A);");
 			}
-			fprintf(outFile.Handle(), "\n\t\tend if;");
-			fprintf(outFile.Handle(), "\n\tend process;");
+			printf("\n\t\tend if;");
+			printf("\n\tend process;");
 		}
 
 		if (selectIter == 1)
 		{
-			fprintf(outFile.Handle(), "\n\tU_ROM: RAMB4_S8\n\t\tport map (Zero, Zero, Clk, A(0), A(1), A(2), A(3), D(0));");
+			printf("\n\n\tsG1: for I in 0 to %d generate", dWidth - 1);
+			printf("\n\t\tS%s : LUT4\n\t\t\tport map (", argv[1]);
+			if (blockIter)
+			{
+				printf("s");
+			}
+			printf("D(I), A_r(0), A_r(1), A_r(2), A_r(3));");
+			printf("\n\tend generate;");
 		}
 		if (selectIter > 1)
 		{
-			fprintf(outFile.Handle(), "\n\n\tsiA <= to_integer(A(A'left downto 4));");
-			fprintf(outFile.Handle(), "\n\tsiA_r <= TO_INTEGER(A_r(A'left downto 4));");
-			fprintf(outFile.Handle(), "\n\n\tprocess (siA)\n\t\tvariable S:UNSIGNED(%d downto 0);", selectIter - 1);
-			fprintf(outFile.Handle(), "\n\tbegin\n\t\tS := TO_UNSIGNED(1,%d);", selectIter);
-			fprintf(outFile.Handle(), "\n\t\tfor I in 0 to %d loop", selectIter - 1);
-			fprintf(outFile.Handle(), "\n\t\t\tif I < iA then\n\t\t\t\tS := SHL(S,\"1\");\n\t\t\tend if;\n\t\tend loop;");
-			fprintf(outFile.Handle(), "\n\t\tbEN <= to_unsigned(S,%d);\n\tend process;", selectIter);
-			fprintf(outFile.Handle(), "\n\n\tsG1_1: for I in 0 to %d generate", selectIter - 1);
-			fprintf(outFile.Handle(), "\n\t\tU_ROM: RAMB4_S8\n\t\t\tport map (DI, sEN(I), Zero, Zero, Clk, A(3 downto 0), bRAMOut(I));");
-			if (z)
+			printf("\n\n\tsiA_r <= to_integer(A_r(A'left downto 4));");
+			printf("\n\n\tsG1: for I in 0 to %d generate", selectIter - 1);
+			printf("\n\t\tsG2: for J in 0 to %d generate", dWidth - 1);
+			printf("\n\t\t\tS%s : LUT4\n\t\t\t\tport map (sRAMOut(I)(J), A_r(0), A_r(1), A_r(2), A_r(3));", argv[1]);
+			printf("\n\t\tend generate;");
+			if (z == 'z')
 			{
-				fprintf(outFile.Handle(), "\n\t\tD <= bRAMOut(I) when iA2=I else (others=>'Z');");
+				printf("\n\t\t");
+				if (blockIter)
+				{
+					printf("s");
+				}
+				printf("D <= sRAMOut(I) when siA_r = I else (others => 'Z');");
 			}
-			fprintf(outFile.Handle(), "\n\tend generate;");
-			if (!z)
+			printf("\n\tend generate;");
+			if (z != 'z')
 			{
-				fprintf(outFile.Handle(), "\n\n\tprocess (biA_r,RAMOut)\n\tbegin");
-				fprintf(outFile.Handle(), "\n\t\tD <= sRAMOut(0);");
-				fprintf(outFile.Handle(), "\n\t\tfor I in 1 to %d loop", selectIter - 1);
-				fprintf(outFile.Handle(), "\n\t\t\tif siA_r=I then\n\t\t\t\tD <= sRAMOut(I);\n\t\t\tend if;");
-				fprintf(outFile.Handle(), "\n\t\tend loop;\n\tend process;");
-			}
-		}
-		if (blockIter == 1)
-		{
-			fprintf(outFile.Handle(), "\n\tU_ROM: RAMB4_S8\n\t\tport map (DI, One, Zero, Zero, Clk, A, D);");
-		}
-		if (blockIter > 1)
-		{
-			fprintf(outFile.Handle(), "\n\n\tbiA <= to_integer(A(A'left downto 9));");
-			fprintf(outFile.Handle(), "\n\tbiA_r <= TO_INTEGER(A_r(A'left downto 9));");
-			fprintf(outFile.Handle(), "\n\n\tprocess (biA)\n\t\tvariable S:UNSIGNED(%d downto 0);", blockIter - 1);
-			fprintf(outFile.Handle(), "\n\tbegin\n\t\tS := TO_UNSIGNED(1,%d);", blockIter);
-			fprintf(outFile.Handle(), "\n\t\tfor I in 0 to %d loop", blockIter - 1);
-			fprintf(outFile.Handle(), "\n\t\t\tif I < iA then\n\t\t\t\tS := SHL(S,\"1\");\n\t\t\tend if;\n\t\tend loop;");
-			fprintf(outFile.Handle(), "\n\t\tbEN <= to_unsigned(S,%d);\n\tend process;", blockIter);
-			fprintf(outFile.Handle(), "\n\n\tbG1_1: for I in 0 to %d generate", blockIter - 1);
-			fprintf(outFile.Handle(), "\n\t\tU_ROM: RAMB4_S8\n\t\t\tport map (DI, bEN(I), Zero, Zero, Clk, A(8 downto 0), bRAMOut(I));");
-			if (z)
-			{
-				fprintf(outFile.Handle(), "\n\t\tD <= bRAMOut(I) when iA2=I else (others=>'Z');");
-			}
-			fprintf(outFile.Handle(), "\n\tend generate;");
-			if (!z)
-			{
-				fprintf(outFile.Handle(), "\n\n\tprocess (biA_r,RAMOut)\n\tbegin");
-				fprintf(outFile.Handle(), "\n\t\tD <= bRAMOut(0);");
-				fprintf(outFile.Handle(), "\n\t\tfor I in 1 to %d loop", blockIter - 1);
-				fprintf(outFile.Handle(), "\n\t\t\tif biA_r=I then\n\t\t\t\tD <= bRAMOut(I);\n\t\t\tend if;");
-				fprintf(outFile.Handle(), "\n\t\tend loop;\n\tend process;");
+				printf("\n\n\tprocess (siA_r, sRAMOut)\n\tbegin\n\t\t");
+				if (blockIter)
+				{
+					printf("s");
+				}
+				printf("D <= sRAMOut(0);");
+				printf("\n\t\tfor I in 1 to %d loop", selectIter - 1);
+				printf("\n\t\t\tif siA_r = I then\n\t\t\t\t");
+				if (blockIter)
+				{
+					printf("s");
+				}
+				printf("D <= sRAMOut(I);\n\t\t\tend if;");
+				printf("\n\t\tend loop;\n\tend process;");
 			}
 		}
 
-		fprintf(outFile.Handle(), "\nend;\n");
+		if (blockIter == 1)
+		{
+			printf("\n\n\tbG1: for J in 0 to %d generate", bytes - 1);
+			printf("\n\t\tB%s : RAMB4_S8\n\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), ", argv[1]);
+			if (selectIter)
+			{
+				printf("b");
+			}
+			printf("D(7 + 8 * J downto 8 * J));");
+			printf("\n\tend generate;");
+		}
+		if (blockIter > 1)
+		{
+			printf("\n\n\tbiA_r <= to_integer(A_r(A'left downto 9));");
+			printf("\n\n\tbG1: for I in %d to %d generate", blockTotal - blockIter, blockTotal - 1);
+			printf("\n\t\tbG2: for J in 0 to %d generate", bytes - 1);
+			printf("\n\t\t\tB%s : RAMB4_S8\n\t\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), bRAMOut(I)(7 + 8 * J downto 8 * J));", argv[1]);
+			printf("\n\t\tend generate;");
+			if (z == 'z')
+			{
+				printf("\n\t\t");
+				if (selectIter)
+				{
+					printf("b");
+				}
+				printf("D <= bRAMOut(I) when biA_r = I else (others => 'Z');");
+			}
+			printf("\n\tend generate;");
+			if (z != 'z')
+			{
+				printf("\n\n\tprocess (biA_r, bRAMOut)\n\tbegin\n\t\t");
+				if (selectIter)
+				{
+					printf("b");
+				}
+				printf("D <= bRAMOut(%d)(%d downto 0);", blockTotal - blockIter, dWidth - 1);
+				printf("\n\t\tfor I in %d to %d loop", blockTotal - blockIter + 1, blockTotal - 1);
+				printf("\n\t\t\tif biA_r = I then\n\t\t\t\t");
+				if (selectIter)
+				{
+					printf("b");
+				}
+				printf("D <= bRAMOut(I);\n\t\t\tend if;");
+				printf("\n\t\tend loop;\n\tend process;");
+			}
+		}
+
+		if (selectIter && blockIter)
+		{
+			printf("\n\n\tD <= bD when A_r(A'left downto 9) >= %d else sD;", blockTotal - blockIter);
+		}
+
+		printf("\nend;\n");
 
 		return 0;
 	}
