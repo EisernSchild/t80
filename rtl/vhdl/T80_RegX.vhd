@@ -1,7 +1,7 @@
 --
 -- T80 Registers for Xilinx Select RAM
 --
--- Version : 0242
+-- Version : 0244
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -46,12 +46,12 @@
 --
 --	0242 : Initial release
 --
+--	0244 : Removed UNISIM library and added componet declaration
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-library UNISIM;
-use UNISIM.vcomponents.all;
 
 entity T80_Reg is
 	port(
@@ -74,6 +74,23 @@ entity T80_Reg is
 end T80_Reg;
 
 architecture rtl of T80_Reg is
+
+	component RAM16X1D
+		port(
+			DPO		: out std_ulogic;
+			SPO		: out std_ulogic;
+			A0		: in std_ulogic;
+			A1		: in std_ulogic;
+			A2		: in std_ulogic;
+			A3		: in std_ulogic;        
+			D		: in std_ulogic;
+			DPRA0	: in std_ulogic;
+			DPRA1	: in std_ulogic;
+			DPRA2	: in std_ulogic;
+			DPRA3	: in std_ulogic;
+			WCLK	: in std_ulogic;        
+			WE		: in std_ulogic);
+	end component;
 
 	signal	ENH		: std_logic;
 	signal	ENL		: std_logic;
