@@ -1,7 +1,7 @@
 --
 -- Simple SRAM model without timing
 --
--- Version : 0241
+-- Version : 0247
 --
 -- Copyright (c) 2001 Daniel Wallner (jesus@opencores.org)
 --
@@ -73,7 +73,7 @@ architecture behaviour of SRAM is
 
 begin
 
-	Write <= CE_n nor WE_n;
+	Write <= '1' when CE_n = '0' and WE_n = '0' else '0';
 	D_del <= D after 1 ns;
 
 	process (Write)
