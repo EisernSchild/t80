@@ -1,7 +1,7 @@
 --
--- T80 Registers for Leonardo
+-- T80 Registers, technology independent
 --
--- Version : 0242
+-- Version : 0244
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -46,6 +46,8 @@
 --
 --	0242 : Initial release
 --
+--	0244 : Changed to single register file
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -74,12 +76,8 @@ end T80_Reg;
 architecture rtl of T80_Reg is
 
 	type Register_Image is array (natural range <>) of std_logic_vector(7 downto 0);
-	signal	RegsAH	: Register_Image(0 to 7);
-	signal	RegsAL	: Register_Image(0 to 7);
-	signal	RegsBH	: Register_Image(0 to 7);
-	signal	RegsBL	: Register_Image(0 to 7);
-	signal	RegsCH	: Register_Image(0 to 7);
-	signal	RegsCL	: Register_Image(0 to 7);
+	signal	RegsH	: Register_Image(0 to 7);
+	signal	RegsL	: Register_Image(0 to 7);
 
 begin
 
@@ -88,24 +86,20 @@ begin
 		if Clk'event and Clk = '1' then
 			if CEN = '1' then
 				if WEH = '1' then
-					RegsAH(to_integer(unsigned(AddrA))) <= DIH;
-					RegsBH(to_integer(unsigned(AddrA))) <= DIH;
-					RegsCH(to_integer(unsigned(AddrA))) <= DIH;
+					RegsH(to_integer(unsigned(AddrA))) <= DIH;
 				end if;
 				if WEL = '1' then
-					RegsAL(to_integer(unsigned(AddrA))) <= DIL;
-					RegsBL(to_integer(unsigned(AddrA))) <= DIL;
-					RegsCL(to_integer(unsigned(AddrA))) <= DIL;
+					RegsL(to_integer(unsigned(AddrA))) <= DIL;
 				end if;
 			end if;
 		end if;
 	end process;
 
-	DOAH <= RegsAH(to_integer(unsigned(AddrA)));
-	DOAL <= RegsAL(to_integer(unsigned(AddrA)));
-	DOBH <= RegsBH(to_integer(unsigned(AddrB)));
-	DOBL <= RegsBL(to_integer(unsigned(AddrB)));
-	DOCH <= RegsCH(to_integer(unsigned(AddrC)));
-	DOCL <= RegsCL(to_integer(unsigned(AddrC)));
+	DOAH <= RegsH(to_integer(unsigned(AddrA)));
+	DOAL <= RegsL(to_integer(unsigned(AddrA)));
+	DOBH <= RegsH(to_integer(unsigned(AddrB)));
+	DOBL <= RegsL(to_integer(unsigned(AddrB)));
+	DOCH <= RegsH(to_integer(unsigned(AddrC)));
+	DOCL <= RegsL(to_integer(unsigned(AddrC)));
 
 end;
