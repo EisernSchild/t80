@@ -1,7 +1,7 @@
 --
 -- Xilinx Block RAM, 8 bit wide and variable size (Min. 512 bytes)
 --
--- Version : 0242
+-- Version : 0247
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -46,14 +46,14 @@
 --
 --	0240 : Initial release
 --
---	0240 : Changed RAMB4_S8 to map by name
+--	0242 : Changed RAMB4_S8 to map by name
+--
+--	0247 : Added RAMB4_S8 component declaration
 --
 
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
-library UNISIM;
-use UNISIM.vcomponents.all;
 
 entity SSRAM is
 	generic(
@@ -71,6 +71,17 @@ entity SSRAM is
 end SSRAM;
 
 architecture rtl of SSRAM is
+
+	component RAMB4_S8
+		port(
+			DO     : out std_logic_vector(7 downto 0);
+			ADDR   : in std_logic_vector(8 downto 0);
+			CLK    : in std_ulogic;
+			DI     : in std_logic_vector(7 downto 0);
+			EN     : in std_ulogic;
+			RST    : in std_ulogic;
+			WE     : in std_ulogic);
+	end component;
 
 	constant RAMs : integer := (2 ** AddrWidth) / 512;
 
