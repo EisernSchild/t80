@@ -1,10 +1,8 @@
 --
 -- 16450 compatible UART with synchronous bus interface
 -- RClk/BaudOut is XIn enable instead of actual clock
--- No break detection, no modem status change detection
--- Only one stop bit supported
 --
--- Version : 0208
+-- Version : 0249
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -47,6 +45,11 @@
 --
 -- File history :
 --
+-- 0208 : First release
+--
+-- 0249 : Fixed interrupt and baud rate bugs found by Andy Dyer
+--        Added modem status and break detection
+--        Added support for 1.5 and 2 stop bits
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -95,7 +98,10 @@ architecture rtl of T16450 is
 	signal	DM0				: std_logic_vector(7 downto 0);
 	signal	DM1				: std_logic_vector(7 downto 0);
 
+	signal	MSR_In			: std_logic_vector(3 downto 0);
+
 	signal	Bit_Phase		: unsigned(3 downto 0);
+	signal	Brk_Cnt			: unsigned(3 downto 0);
 	signal	RX_Filtered		: std_logic;
 	signal	RX_ShiftReg		: std_logic_vector(7 downto 0);
 	signal	RX_Bit_Cnt		: integer range 0 to 11;
@@ -106,6 +112,8 @@ architecture rtl of T16450 is
 	signal	TX_ShiftReg		: std_logic_vector(7 downto 0);
 	signal	TX_Bit_Cnt		: integer range 0 to 11;
 	signal	TX_Parity		: std_logic;
+	signal	TX_Next_Is_Stop	: std_logic;
+	signal	TX_Stop_Bit		: std_logic;
 	signal	TXD				: std_logic;
 
 begin
@@ -139,7 +147,7 @@ begin
 			IER <= "00000000";
 			LCR <= "00000000";
 			MCR <= "00000000";
-			MSR <= "00000000";
+			MSR(3 downto 0) <= "0000";
 			SCR <= "00000000"; -- ??
 			DLL <= "00000000"; -- ??
 			DLM <= "00000000"; -- ??
@@ -167,26 +175,50 @@ begin
 				when others =>
 				end case;
 			end if;
+			if Rd_n = '0' and CS_n = '0' and A = "110" then
+				MSR(3 downto 0) <= "0000";
+			end if;
+			if MSR(4) /= MSR_In(0) then
+				MSR(0) <= '1';
+			end if;
+			if MSR(5) /= MSR_In(1) then
+				MSR(1) <= '1';
+			end if;
+			if MSR(6) = '0' and MSR_In(2) = '1' then
+				MSR(2) <= '1';
+			end if;
+			if MSR(7) /= MSR_In(3) then
+				MSR(3) <= '1';
+			end if;
+		end if;
+	end process;
+	process (XIn)
+	begin
+		if XIn'event and XIn = '1' then
 			if MCR(4) = '0' then
-				MSR(4) <= CTS_n;
-				MSR(5) <= DSR_n;
-				MSR(6) <= RI_n;
-				MSR(7) <= DCD_n;
+				MSR(4) <= MSR_In(0);
+				MSR(5) <= MSR_In(1);
+				MSR(6) <= MSR_In(2);
+				MSR(7) <= MSR_In(3);
 			else
 				MSR(4) <= MCR(1);
 				MSR(5) <= MCR(0);
 				MSR(6) <= MCR(2);
 				MSR(7) <= MCR(3);
 			end if;
+			MSR_In(0) <= CTS_n;
+			MSR_In(1) <= DSR_n;
+			MSR_In(2) <= RI_n;
+			MSR_In(3) <= DCD_n;
 		end if;
 	end process;
 
 	IIR(7 downto 3) <= "00000";
 	IIR(2 downto 0) <=
 		"110" when IER(2) = '1' and LSR(4 downto 1) /= "0000" else
-		"110" when (IER(0) and LSR(0)) = '1' else
+		"100" when (IER(0) and LSR(0)) = '1' else
 		"010" when (IER(1) and LSR(5)) = '1' else
-		"001" when IER(3) = '1' and ((MCR(4) = '0' and MSR(3 downto 0) /= "0000") or
+		"000" when IER(3) = '1' and ((MCR(4) = '0' and MSR(3 downto 0) /= "0000") or
 									(MCR(4) = '1' and MCR(3 downto 0) /= "0000")) else
 		"001";
 
@@ -195,10 +227,10 @@ begin
 		variable Baud_Cnt : unsigned(15 downto 0);
 	begin
 		if MR_n = '0' then
-			Baud_Cnt := "0000000000000001";
+			Baud_Cnt := "0000000000000000";
 			BaudOut <= '0';
 		elsif XIn'event and XIn = '1' then
-			if Baud_Cnt = "0000000000000001" or (Wr_n = '0' and CS_n = '0' and A(2 downto 1) = "00" and LCR(7) = '1') then
+			if Baud_Cnt(15 downto 1) = "000000000000000" or (Wr_n = '0' and CS_n = '0' and A(2 downto 1) = "00" and LCR(7) = '1') then
 				Baud_Cnt(15 downto 8) := unsigned(DLM);
 				Baud_Cnt(7 downto 0) := unsigned(DLL);
 				BaudOut <= '1';
@@ -237,6 +269,7 @@ begin
 			RBR <= "00000000";
 			LSR(4 downto 0) <= "00000";
 			Bit_Phase <= "0000";
+			Brk_Cnt <= "0000";
 			RX_ShiftReg(7 downto 0) <= "00000000";
 			RX_Bit_Cnt <= 0;
 			RX_Parity <= '0';
@@ -245,6 +278,7 @@ begin
 				LSR(0) <= '0';	-- DR
 			end if;
 			if A = "101" and Rd_n = '0' and CS_n = '0' then
+				LSR(4) <= '0';	-- BI
 				LSR(3) <= '0';	-- FE
 				LSR(2) <= '0';	-- PE
 				LSR(1) <= '0';	-- OE
@@ -254,6 +288,16 @@ begin
 					Bit_Phase <= "0000";
 				else
 					Bit_Phase <= Bit_Phase + 1;
+				end if;
+				if Bit_Phase = "1111" then
+					if RX_Filtered = '1' then
+						Brk_Cnt <= "0000";
+					else
+						Brk_Cnt <= Brk_Cnt + 1;
+					end if;
+					if Brk_Cnt = "1100" then
+						LSR(4) <= '1';	-- BI
+					end if;
 				end if;
 				if RX_Bit_Cnt = 0 then
 					if Bit_Phase = "0111" then
@@ -318,18 +362,33 @@ begin
 
 	-- Transmit bit tick
 	process (MR_n, XIn)
-		variable TX_Cnt : unsigned(3 downto 0);
+		variable TX_Cnt : unsigned(4 downto 0);
 	begin
 		if MR_n = '0' then
-			TX_Cnt := "0000";
+			TX_Cnt := "00000";
 			TX_Tick <= '0';
 		elsif XIn'event and XIn = '1' then
 			TX_Tick <= '0';
 			if RClk = '1' then
-				if TX_Cnt = "1111" then
-					TX_Tick <= '1';
-				end if;
 				TX_Cnt := TX_Cnt + 1;
+				if LCR(2) = '1' and TX_Stop_Bit = '1' then
+					if LCR(1 downto 0) = "00" then
+						if TX_Cnt = "10111" then
+							TX_Tick <= '1';
+							TX_Cnt(3 downto 0) := "0000";
+						end if;
+					else
+						if TX_Cnt = "11111" then
+							TX_Tick <= '1';
+							TX_Cnt(3 downto 0) := "0000";
+						end if;
+					end if;
+				else
+					TX_Cnt(4) := '1';
+					if TX_Cnt(3 downto 0) = "1111" then
+						TX_Tick <= '1';
+					end if;
+				end if;
 			end if;
 		end if;
 	end process;
@@ -343,8 +402,12 @@ begin
 			TX_ShiftReg <= (others => '0');
 			TXD <= '1';
 			TX_Parity <= '0';
+			TX_Next_Is_Stop <= '0';
+			TX_Stop_Bit <= '0';
 		elsif XIn'event and XIn = '1' then
 			if TX_Tick = '1' then
+				TX_Next_Is_Stop <= '0';
+				TX_Stop_Bit <= TX_Next_Is_Stop;
 				case TX_Bit_Cnt is
 				when 0 =>
 					if LSR(5) <= '0' then	-- THRE
@@ -363,6 +426,7 @@ begin
 						TXD <= not LCR(4);
 					end if;
 					TX_Bit_Cnt <= 0;
+					TX_Next_Is_Stop <= '1';
 				when others =>
 					TX_Bit_Cnt <= TX_Bit_Cnt + 1;
 					if (TX_Bit_Cnt = 9 and LCR(1 downto 0) = "11") or
@@ -372,6 +436,8 @@ begin
 						TX_Bit_Cnt <= 0;
 						if LCR(3) = '1' then	-- PEN
 							TX_Bit_Cnt <= 10;
+						else
+							TX_Next_Is_Stop <= '1';
 						end if;
 						LSR(6) <= '1';	-- TEMT
 					end if;
