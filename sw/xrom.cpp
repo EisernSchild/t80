@@ -1,7 +1,7 @@
 //
 // Xilinx VHDL ROM generator
 //
-// Version : 0220
+// Version : 0221
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -48,6 +48,7 @@
 //
 // 0220 : Initial release
 //
+// 0221 : Fixed block ROMs with partial bytes
 
 #include <stdio.h>
 #include <string>
@@ -63,7 +64,7 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0220\n";
+	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0221\n";
 
 	try
 	{
@@ -180,9 +181,13 @@ int main (int argc, char *argv[])
 		{
 			printf("\n\tsignal sD : std_logic_vector(D'range);");
 		}
+		if (blockIter == 1)
+		{
+			printf("\n\tsignal bRAMOut : std_logic_vector(%d downto 0);", bytes * 8 - 1);
+		}
 		if (blockIter > 1)
 		{
-			printf("\n\ttype bRAMOut_a is array(%d to %d) of std_logic_vector(D'range);", blockTotal - blockIter, blockTotal - 1);
+			printf("\n\ttype bRAMOut_a is array(%d to %d) of std_logic_vector(%d downto 0);", blockTotal - blockIter, blockTotal - 1, bytes * 8 - 1);
 			printf("\n\tsignal bRAMOut : bRAMOut_a;");
 			printf("\n\tsignal biA_r : integer;");
 			if (!selectIter)
@@ -264,13 +269,15 @@ int main (int argc, char *argv[])
 		if (blockIter == 1)
 		{
 			printf("\n\n\tbG1: for J in 0 to %d generate", bytes - 1);
-			printf("\n\t\tB%s : RAMB4_S8\n\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), ", argv[1]);
+			printf("\n\t\tB%s : RAMB4_S8", argv[1]);
+			printf("\n\t\t\tport map (\"00000000\", '1', '0', '0', Clk, A(8 downto 0), bRAMOut(7 + 8 * J downto 8 * J));", argv[1]);
+			printf("\n\tend generate;");
+			printf("\n\n\t");
 			if (selectIter)
 			{
 				printf("b");
 			}
-			printf("D(7 + 8 * J downto 8 * J));");
-			printf("\n\tend generate;");
+			printf("D <= bRAMOut(D'range);");
 		}
 		if (blockIter > 1)
 		{
@@ -296,14 +303,14 @@ int main (int argc, char *argv[])
 				{
 					printf("b");
 				}
-				printf("D <= bRAMOut(%d)(%d downto 0);", blockTotal - blockIter, dWidth - 1);
+				printf("D <= bRAMOut(%d)(D'range);", blockTotal - blockIter);
 				printf("\n\t\tfor I in %d to %d loop", blockTotal - blockIter + 1, blockTotal - 1);
 				printf("\n\t\t\tif biA_r = I then\n\t\t\t\t");
 				if (selectIter)
 				{
 					printf("b");
 				}
-				printf("D <= bRAMOut(I);\n\t\t\tend if;");
+				printf("D <= bRAMOut(I)(D'range);\n\t\t\tend if;");
 				printf("\n\t\tend loop;\n\tend process;");
 			}
 		}
