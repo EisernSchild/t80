@@ -3,7 +3,7 @@
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0236
+-- Version : 0237
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -55,6 +55,8 @@
 --	0235 : Updated for T80 interface change
 --
 --	0236 : Added T2Write generic
+--
+--	0237 : Fixed T2Write with wait state
 --
 
 library IEEE;
@@ -164,7 +166,7 @@ begin
 						MREQ_n <= IORQ;
 					end if;
 				else
-					if TState = "001" and Write = '1' then
+					if (TState = "001" or (TState = "010" and READY = '0')) and Write = '1' then
 						WR_n <= '0';
 						IORQ_n <= not IORQ;
 						MREQ_n <= IORQ;
