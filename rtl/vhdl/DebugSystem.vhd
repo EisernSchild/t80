@@ -28,7 +28,7 @@ entity DebugSystem is
 		RTS1		: out std_logic;
 		DTR1		: out std_logic
 	);
-end entity DebugSystem;
+end DebugSystem;
 
 architecture struct of DebugSystem is
 
@@ -93,7 +93,7 @@ begin
 		ROM_D;
 
 	u0 : entity work.T80s
-			generic map(Mode => 1)
+			generic map(Mode => 1, T2Write => 1)
 			port map(
 				RESET_n => RESET_s,
 				CLK_n => Clk,
