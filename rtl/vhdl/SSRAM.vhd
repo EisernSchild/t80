@@ -45,6 +45,7 @@
 -- File history :
 --	0208 : Initial release
 --	0218 : Fixed data out at write
+--	0220 : Added support for XST
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -52,7 +53,7 @@ use IEEE.numeric_std.all;
 
 entity SSRAM is
 	generic(
-		AddrWidth	: integer := 16;
+		AddrWidth	: integer := 11;
 		DataWidth	: integer := 8
 	);
 	port(
@@ -70,27 +71,24 @@ architecture behaviour of SSRAM is
 	type Memory_Image is array (natural range <>) of std_logic_vector(DataWidth - 1 downto 0);
 	signal	RAM		: Memory_Image(0 to 2 ** AddrWidth - 1);
 	signal	A_r		: std_logic_vector(AddrWidth - 1 downto 0);
+	signal	B		: std_logic_vector(AddrWidth - 1 downto 0);
 
 begin
 
 	process (Clk)
 	begin
 		if Clk'event and Clk = '1' then
--- pragma translate_off
-			if not is_x(A) then
--- pragma translate_on
-				DOut <= RAM(to_integer(unsigned(A(AddrWidth - 1 downto 0))));
--- pragma translate_off
-			end if;
--- pragma translate_on
-			if CE_n = '0' and WE_n = '0' then
-				RAM(to_integer(unsigned(A_r))) <= DIn;
-				if A_r = A then
-					DOut <= DIn;
-				end if;
+			if (CE_n nor WE_n) = '1' then
+				RAM(to_integer(unsigned(B))) <= DIn;
 			end if;
 			A_r <= A;
+			B <= A;
 		end if;
 	end process;
 
+	DOut <= RAM(to_integer(unsigned(A_r)))
+-- pragma translate_off
+			when not is_x(A_r) else (others => '-')
+-- pragma translate_on
+	;
 end;
