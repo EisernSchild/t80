@@ -1,7 +1,7 @@
 --
--- Inferrable Synchronous SRAM for Leonardo synthesis
+-- Inferrable Synchronous SRAM for Leonardo synthesis, no write through!
 --
--- Version : 0218
+-- Version : 0236
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -43,8 +43,7 @@
 -- Limitations :
 --
 -- File history :
---	0208 : Initial release
---	0218 : Fixed data out at write
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -85,9 +84,6 @@ begin
 -- pragma translate_on
 			if CE_n = '0' and WE_n = '0' then
 				RAM(to_integer(unsigned(A_r))) <= DIn;
-				if A_r = A then
-					DOut <= DIn;
-				end if;
 			end if;
 			A_r <= A;
 		end if;
