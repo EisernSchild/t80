@@ -1,7 +1,7 @@
 //
 // Xilinx VHDL ROM generator
 //
-// Version : 0241
+// Version : 0244
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -51,6 +51,9 @@
 // 0221 : Fixed block ROMs with partial bytes
 //
 // 0241 : Updated for WebPack 5.1
+//
+// 0244 : Added -n option and component declaration
+//
 
 #include <stdio.h>
 #include <string>
@@ -66,13 +69,14 @@ using namespace std;
 
 int main (int argc, char *argv[])
 {
-	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0241\n";
+	cerr << "Xilinx VHDL ROM generator by Daniel Wallner. Version 0244\n";
 
 	try
 	{
 		unsigned long aWidth;
 		unsigned long dWidth;
 		unsigned long select = 0;
+		unsigned long length = 0;
 		char z = 0;
 
 		if (argc < 4)
@@ -81,6 +85,7 @@ int main (int argc, char *argv[])
 			cerr << "\nThe options can be:\n";
 			cerr << "  -[decimal number] = SelectRAM usage in 1/16 parts\n";
 			cerr << "  -z = use tri-state buses\n";
+			cerr << "  -n [decimal size] = limit rom size\n";
 			cerr << "\nExample:\n";
 			cerr << "  xrom Test_ROM 13 8 -6\n\n";
 			return -1;
@@ -100,38 +105,52 @@ int main (int argc, char *argv[])
 			throw "Error in data bits argument!\n";
 		}
 
-		if (argc > 4)
-		{
-			result = sscanf(argv[4], "%c%lu", &z, &select);
-			if (result < 1 || z != '-')
-			{
-				throw "Error in options!\n";
-			}
-			if (result < 2)
-			{
-				sscanf(argv[4], "%c%c", &z, &z);
-				if (z != 'z')
-				{
-					throw "Error in options!\n";
-				}
-			}
-		}
+		int argument = 4;
 
-		if (argc > 5)
+		while (argument < argc)
 		{
-			result = sscanf(argv[5], "%c%lu", &z, &select);
-			if (result < 1 || z != '-')
+			char tmpC = 0;
+			unsigned long tmpL = 0;
+
+			result = sscanf(argv[argument], "%c%lu", &tmpC, &tmpL);
+			if (result < 1 || tmpC != '-' )
 			{
 				throw "Error in options!\n";
 			}
+
 			if (result < 2)
 			{
-				sscanf(argv[5], "%c%c", &z, &z);
-				if (z != 'z')
+				sscanf(argv[argument], "%c%c", &tmpC, &tmpC);
+				if (tmpC != 'z' && tmpC != 'n')
 				{
-					throw "Error in options!\n";
+					throw "Unkown option!\n";
+				}
+				if (tmpC == 'z')
+				{
+					z = tmpC;
+				}
+				else
+				{
+					argument++;
+
+					if (argument == argc)
+					{
+						throw "No memory size argument!\n";
+					}
+
+					result = sscanf(argv[argument], "%lu", &tmpL);
+					if (!result)
+					{
+						throw "Memory size not a number!\n";
+					}
+					length = tmpL;
 				}
 			}
+			else
+			{
+				select = tmpL;
+			}
+			argument++;
 		}
 
 		unsigned long selectIter = 0;
@@ -141,10 +160,18 @@ int main (int argc, char *argv[])
 		if (!select)
 		{
 			blockIter = ((1UL << aWidth) + 511) / 512;
+			if (length && length < blockIter * 512)
+			{
+				blockIter = (length + 511) / 512;
+			}
 		}
 		else if (select == 16)
 		{
 			selectIter = ((1UL << aWidth) + 15) / 16;
+			if (length && length < selectIter * 16)
+			{
+				selectIter = (length + 15) / 16;
+			}
 		}
 		else
 		{
@@ -153,13 +180,34 @@ int main (int argc, char *argv[])
 		}
 
 		unsigned long blockTotal = ((1UL << aWidth) + 511) / 512;
+		if (length && length < blockTotal * 512)
+		{
+			blockTotal = (length + 511) / 512;
+		}
+
+		if (length)
+		{
+			if (length > selectIter * 16)
+			{
+				blockIter -= ((1UL << aWidth) + 511) / 512 - blockTotal;
+			}
+			else
+			{
+				blockIter = 0;
+			}
+		}
+		if (length && !blockIter && length < selectIter * 16)
+		{
+			selectIter = (length + 15) / 16;
+		}
+
+		cerr << "Creating ROM with " << selectIter * bytes;
+		cerr << " RAM16X1S and "  << blockIter * bytes << " RAMB4_S8\n";
 
 		printf("-- This file was generated with xrom written by Daniel Wallner\n");
 		printf("\nlibrary IEEE;");
 		printf("\nuse IEEE.std_logic_1164.all;");
 		printf("\nuse IEEE.numeric_std.all;");
-		printf("\nlibrary UNISIM;");
-		printf("\nuse UNISIM.vcomponents.all;");
 		printf("\n\nentity %s is", argv[1]);
 		printf("\n\tport(");
 		printf("\n\t\tClk\t: in std_logic;");
@@ -168,6 +216,34 @@ int main (int argc, char *argv[])
 		printf("\n\t);");
 		printf("\nend %s;", argv[1]);
 		printf("\n\narchitecture rtl of %s is", argv[1]);
+
+		if (selectIter)
+		{
+			printf("\n\tcomponent RAM16X1S");
+			printf("\n\t\tport(");
+			printf("\n\t\t\tO    : out std_ulogic;");
+			printf("\n\t\t\tA0   : in std_ulogic;");
+			printf("\n\t\t\tA1   : in std_ulogic;");
+			printf("\n\t\t\tA2   : in std_ulogic;");
+			printf("\n\t\t\tA3   : in std_ulogic;");
+			printf("\n\t\t\tD    : in std_ulogic;");
+			printf("\n\t\t\tWCLK : in std_ulogic;");
+			printf("\n\t\t\tWE   : in std_ulogic);");
+			printf("\n\tend component;\n");
+		}
+		if (blockIter)
+		{
+			printf("\n\tcomponent RAMB4_S8");
+			printf("\n\t\tport(");
+			printf("\n\t\t\tDO     : out std_logic_vector(7 downto 0);");
+			printf("\n\t\t\tADDR   : in std_logic_vector(8 downto 0);");
+			printf("\n\t\t\tCLK    : in std_ulogic;");
+			printf("\n\t\t\tDI     : in std_logic_vector(7 downto 0);");
+			printf("\n\t\t\tEN     : in std_ulogic;");
+			printf("\n\t\t\tRST    : in std_ulogic;");
+			printf("\n\t\t\tWE     : in std_ulogic);");
+			printf("\n\tend component;\n");
+		}
 
 		if (selectIter > 0)
 		{
@@ -224,7 +300,7 @@ int main (int argc, char *argv[])
 		if (selectIter == 1)
 		{
 			printf("\n\n\tsG1: for I in 0 to %d generate", dWidth - 1);
-			printf("\n\t\tS%s : LUT4\n\t\t\tport map (", argv[1]);
+			printf("\n\t\tS%s : RAM16X1S\n\t\t\tport map (", argv[1]);
 			if (blockIter)
 			{
 				printf("s");
