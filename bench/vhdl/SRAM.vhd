@@ -1,7 +1,7 @@
 --
 -- Simple SRAM model without timing
 --
--- Version : 0146
+-- Version : 0240
 --
 -- Copyright (c) 2001 Daniel Wallner (jesus@opencores.org)
 --
@@ -65,14 +65,28 @@ end SRAM;
 
 architecture behaviour of SRAM is
 
-	type Memory_Image is array (natural range <>) of std_logic_vector(7 downto 0);
-	signal	RAM		: Memory_Image(0 to 2**AddrWidth - 1);
-	signal	Write	: std_logic;
+	type Memory_Image is array (natural range <>) of std_logic_vector(Data_Width - 1 downto 0);
+	signal RAM : Memory_Image(0 to 2 ** Addr_Width - 1);
+
+	signal Write : std_logic;
+	signal D_del : std_logic_vector(7 downto 0);
 
 begin
 
-	D <= RAM(to_integer(unsigned(A))) when CE_n = '0' and OE_n = '0' else (others => 'Z');
-	Write <= '1' when CE_n = '0' and WE_n = '0' else '0';
-	RAM(to_integer(unsigned(A))) <= D when Write'event and Write = '0';
+	Write <= CE_n nor WE_n;
+	D_del <= D after 1 ns;
+
+	process (Write)
+	begin
+		if Write'event and Write = '0' then
+			RAM(to_integer(unsigned(A))) <= D_del;
+		end if;
+	end process;
+
+	D <= RAM(to_integer(unsigned(A)))
+-- pragma translate_off
+			when OE_n = '0' and CE_n = '0' and WE_n = '1' and not is_x(A) else (others => 'Z')
+-- pragma translate_on
+			;
 
 end;
