@@ -1,7 +1,7 @@
 --
 -- Xilinx Block RAM, 8 bit wide and variable size (Min. 512 bytes)
 --
--- Version : 0240
+-- Version : 0242
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -45,6 +45,8 @@
 -- File history :
 --
 --	0240 : Initial release
+--
+--	0240 : Changed RAMB4_S8 to map by name
 --
 
 library IEEE;
@@ -96,7 +98,14 @@ begin
 	begin
 		WEA(I) <= '1' when (CE_n nor WE_n) = '1' and biA_r = I else '0';
 		BSSRAM : RAMB4_S8
-			port map (DIn, '1', WEA(I), '0', Clk, A_i, bRAMOut(I));
+			port map(
+				DI => DIn,
+				EN => '1',
+				WE => WEA(I),
+				RST => '0',
+				CLK => Clk,
+				ADDR => A_i,
+				DO => bRAMOut(I));
 	end generate;
 
 	process (biA_r, bRAMOut)
