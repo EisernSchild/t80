@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0242
+-- Version : 0247
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -63,6 +63,8 @@
 --	0240 : Added interrupt ack fix by Mike Johnson, changed (IX/IY+d) timing and changed flags in GB mode
 --
 --	0242 : Added I/O wait, fixed refresh address, moved some registers to RAM
+--
+--	0247 : Fixed bus req/ack cycle
 --
 
 library IEEE;
@@ -151,10 +153,12 @@ architecture rtl of T80 is
 
 	signal TState			: unsigned(2 downto 0);
 	signal MCycle			: std_logic_vector(2 downto 0);
-	signal BReq_FF			: std_logic;
 	signal IntE_FF1			: std_logic;
 	signal IntE_FF2			: std_logic;
 	signal Halt_FF			: std_logic;
+	signal BusReq_s			: std_logic;
+	signal BusAck			: std_logic;
+	signal ClkEn			: std_logic;
 	signal NMI_s			: std_logic;
 	signal INT_s			: std_logic;
 	signal IStatus			: std_logic_vector(1 downto 0);
@@ -325,6 +329,8 @@ begin
 			Q => ALU_Q,
 			F_Out => F_Out);
 
+	ClkEn <= CEN and not BusAck;
+
 	T_Res <= '1' when TState = unsigned(TStates) else '0';
 
 	NextIs_XY_Fetch <= '1' when XY_State /= "00" and XY_Ind = '0' and
@@ -370,7 +376,7 @@ begin
 
 		elsif CLK_n'event and CLK_n = '1' then
 
-			if CEN = '1' then
+			if ClkEn = '1' then
 
 			ALU_Op_r <= "0000";
 			Save_ALU_r <= '0';
@@ -699,7 +705,7 @@ begin
 	process (CLK_n)
 	begin
 		if CLK_n'event and CLK_n = '1' then
-			if CEN = '1' then
+			if ClkEn = '1' then
 				-- Bus A / Write
 				RegAddrA_r <= Alternate & Set_BusA_To(2 downto 1);
 				if XY_Ind = '0' and XY_State /= "00" and Set_BusA_To(2 downto 1) = "10" then
@@ -813,7 +819,7 @@ begin
 	Regs : T80_Reg
 		port map(
 			Clk => CLK_n,
-			CEN => CEN,
+			CEN => ClkEn,
 			WEH => RegWEH,
 			WEL => RegWEL,
 			AddrA => RegAddrA,
@@ -836,7 +842,7 @@ begin
 	process (CLK_n)
 	begin
 		if CLK_n'event and CLK_n = '1' then
-			if CEN = '1' then
+			if ClkEn = '1' then
 			case Set_BusB_To is
 			when "0111" =>
 				BusB <= ACC;
@@ -914,6 +920,7 @@ begin
 	TS <= std_logic_vector(TState);
 	DI_Reg <= DI;
 	HALT_n <= not Halt_FF;
+	BUSAK_n <= not BusAck;
 	IntCycle_n <= not IntCycle;
 	IntE <= IntE_FF1;
 	IORQ <= IORQ_i;
@@ -928,11 +935,13 @@ begin
 		variable OldNMI_n : std_logic;
 	begin
 		if RESET_n = '0' then
+			BusReq_s <= '0';
 			INT_s <= '0';
 			NMI_s <= '0';
 			OldNMI_n := '0';
 		elsif CLK_n'event and CLK_n = '1' then
 			if CEN = '1' then
+			BusReq_s <= not BUSRQ_n;
 			INT_s <= not INT_n;
 			if NMICycle = '1' then
 				NMI_s <= '0';
@@ -955,9 +964,8 @@ begin
 			MCycle <= "001";
 			TState <= "000";
 			Pre_XY_F_M <= "000";
-			BReq_FF <= '0';
 			Halt_FF <= '0';
-			BUSAK_n <= '1';
+			BusAck <= '0';
 			NMICycle <= '0';
 			IntCycle <= '0';
 			IntE_FF1 <= '0';
@@ -966,7 +974,7 @@ begin
 			Auto_Wait_t1 <= '0';
 			Auto_Wait_t2 <= '0';
 			M1_n <= '1';
-		elsif CLK_n'event and CLK_n = '1' then   -- CLK_n is the clock signal
+		elsif CLK_n'event and CLK_n = '1' then
 			if CEN = '1' then
 			if T_Res = '1' then
 				Auto_Wait_t1 <= '0';
@@ -998,20 +1006,16 @@ begin
 			if MCycle = "001" and TState = 2 and Wait_n = '1' then
 				M1_n <= '1';
 			end if;
-			if BReq_FF = '1' then
-				if BUSRQ_n = '1' then
-					BReq_FF <= '0';
-					BUSAK_n <= '1';
-				end if;
+			if BusReq_s = '1' and BusAck = '1' then
 			else
+				BusAck <= '0';
 				if TState = 2 and Wait_n = '0' then
 				elsif T_Res = '1' then
 					if Halt = '1' then
 						Halt_FF <= '1';
 					end if;
-					if BUSRQ_n = '0' then
-						BReq_FF <= '1';
-						BUSAK_n <= '0';
+					if BusReq_s = '1' then
+						BusAck <= '1';
 					else
 						TState <= "001";
 						if NextIs_XY_Fetch = '1' then

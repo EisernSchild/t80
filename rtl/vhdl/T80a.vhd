@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core, asynchronous top level
 --
--- Version : 0242
+-- Version : 0247
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -56,6 +56,8 @@
 --
 --	0242 : Updated for T80 interface change
 --
+--	0247 : Fixed bus req/ack cycle
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -98,7 +100,13 @@ architecture rtl of T80a is
 	signal MReq_Inhibit	: std_logic;
 	signal Req_Inhibit	: std_logic;
 	signal RD			: std_logic;
-	signal WR_i			: std_logic;
+	signal MREQ_n_i		: std_logic;
+	signal IORQ_n_i		: std_logic;
+	signal RD_n_i		: std_logic;
+	signal WR_n_i		: std_logic;
+	signal RFSH_n_i		: std_logic;
+	signal BUSAK_n_i	: std_logic;
+	signal A_i			: std_logic_vector(15 downto 0);
 	signal DO			: std_logic_vector(7 downto 0);
 	signal DI_Reg		: std_logic_vector (7 downto 0);	-- Input synchroniser
 	signal Wait_s		: std_logic;
@@ -108,6 +116,18 @@ architecture rtl of T80a is
 begin
 
 	CEN <= '1';
+
+	BUSAK_n <= BUSAK_n_i;
+	MREQ_n_i <= not MREQ or (Req_Inhibit and MReq_Inhibit);
+	RD_n_i <= not RD or Req_Inhibit;
+
+	MREQ_n <= MREQ_n_i when BUSAK_n_i = '1' else 'Z';
+	IORQ_n <= IORQ_n_i when BUSAK_n_i = '1' else 'Z';
+	RD_n <= RD_n_i when BUSAK_n_i = '1' else 'Z';
+	WR_n <= WR_n_i when BUSAK_n_i = '1' else 'Z';
+	RFSH_n <= RFSH_n_i when BUSAK_n_i = '1' else 'Z';
+	A <= A_i when BUSAK_n_i = '1' else (others => 'Z');
+	D <= DO when Write = '1' and BUSAK_n_i = '1' else (others => 'Z');
 
 	process (RESET_n, CLK_n)
 	begin
@@ -128,16 +148,16 @@ begin
 			IORQ => IORQ,
 			NoRead => NoRead,
 			Write => Write,
-			RFSH_n => RFSH_n,
+			RFSH_n => RFSH_n_i,
 			HALT_n => HALT_n,
 			WAIT_n => Wait_s,
 			INT_n => INT_n,
 			NMI_n => NMI_n,
 			RESET_n => Reset_s,
 			BUSRQ_n => BUSRQ_n,
-			BUSAK_n => BUSAK_n,
+			BUSAK_n => BUSAK_n_i,
 			CLK_n => CLK_n,
-			A => A,
+			A => A_i,
 			DInst => D,
 			DI => DI_Reg,
 			DO => DO,
@@ -145,30 +165,24 @@ begin
 			TS => TState,
 			IntCycle_n => IntCycle_n);
 
-	D <= DO when Write = '1' else (others => 'Z');
-
 	process (CLK_n)
 	begin
 		if CLK_n'event and CLK_n = '0' then
-			WR_n <= WR_i;
 			Wait_s <= WAIT_n;
-			if TState = "011" then
+			if TState = "011" and BUSAK_n_i = '1' then
 				DI_Reg <= to_x01(D);
 			end if;
 		end if;
 	end process;
 
-	MREQ_n <= not MREQ or (Req_Inhibit and MReq_Inhibit);
-	RD_n <= not RD or Req_Inhibit;
-
 	process (Reset_s,CLK_n)
 	begin
 		if Reset_s = '0' then
-			WR_i <= '1';
+			WR_n_i <= '1';
 		elsif CLK_n'event and CLK_n = '1' then
-			WR_i <= '1';
+			WR_n_i <= '1';
 			if TState = "001" then	-- To short for IO writes !!!!!!!!!!!!!!!!!!!
-				WR_i <= not Write;
+				WR_n_i <= not Write;
 			end if;
 		end if;
 	end process;
@@ -203,7 +217,7 @@ begin
 	begin
 		if Reset_s = '0' then
 			RD <= '0';
-			IORQ_n <= '1';
+			IORQ_n_i <= '1';
 			MREQ <= '0';
 		elsif CLK_n'event and CLK_n = '0' then
 
@@ -211,11 +225,11 @@ begin
 				if TState = "001" then
 					RD <= IntCycle_n;
 					MREQ <= IntCycle_n;
-					IORQ_n <= IntCycle_n;
+					IORQ_n_i <= IntCycle_n;
 				end if;
 				if TState = "011" then
 					RD <= '0';
-					IORQ_n <= '1';
+					IORQ_n_i <= '1';
 					MREQ <= '1';
 				end if;
 				if TState = "100" then
@@ -224,12 +238,12 @@ begin
 			else
 				if TState = "001" and NoRead = '0' then
 					RD <= not Write;
-					IORQ_n <= not IORQ;
+					IORQ_n_i <= not IORQ;
 					MREQ <= not IORQ;
 				end if;
 				if TState = "011" then
 					RD <= '0';
-					IORQ_n <= '1';
+					IORQ_n_i <= '1';
 					MREQ <= '0';
 				end if;
 			end if;
