@@ -79,7 +79,7 @@ int main (int argc, char *argv[])
 		{
 			cerr << "\nUsage: xrom <entity name> <address bits> <data bits> <options>\n";
 			cerr << "\nThe options can be:\n";
-			cerr << "  -[deciamal number] = SelectRAM usage in 1/16 parts\n";
+			cerr << "  -[decimal number] = SelectRAM usage in 1/16 parts\n";
 			cerr << "  -z = use tri-state buses\n";
 			cerr << "\nExample:\n";
 			cerr << "  xrom Test_ROM 13 8 -6\n\n";
