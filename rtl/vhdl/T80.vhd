@@ -1,9 +1,9 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0214
+-- Version : 0232
 --
--- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
+-- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
 -- All rights reserved
 --
@@ -38,7 +38,7 @@
 -- you have the latest version of this file.
 --
 -- The latest version of this file can be found at:
---	http://hem.passagen.se/dwallner/vhdl.html
+--	http://www.opencores.org/cvsweb.shtml/t80/
 --
 -- Limitations :
 --	No extra I/O waitstate
@@ -55,6 +55,7 @@
 --
 --	0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
 --
+--	0232 : Removed refresh address output for Mode > 1 and added DJNZ M1_n fix by Mike Johnson
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -330,9 +331,11 @@ begin
 			-- MCycle = 1 and TState = 1, 2, or 3
 
 				if TState = 2 and Wait_n = '1' then
-					A(7 downto 0) <= std_logic_vector(R);
-					A(15 downto 8) <= I;
-					R(6 downto 0) <= R(6 downto 0) + 1;
+					if Mode < 2 then
+						A(7 downto 0) <= std_logic_vector(R);
+						A(15 downto 8) <= I;
+						R(6 downto 0) <= R(6 downto 0) + 1;
+					end if;
 
 					if Jump = '0' and Call = '0' and NMICycle = '0' and IntCycle = '0' and not (Halt_FF = '1' or Halt = '1') then
 						PC <= PC + 1;
@@ -901,7 +904,7 @@ begin
 		if RESET_n = '0' then
 			M1_n <= '0';
 		elsif CLK_n'event and CLK_n = '1' then
-			if T_Res = '1' and MCycle = MCycles then
+			if T_Res = '1' and (MCycle = MCycles or (MCycle = "010" and I_DJNZ = '1' and B = "00000000")) then
 				M1_n <= '0';
 			end if;
 			if MCycle = "001" and TState = 2 and Wait_n = '1' then
