@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0235
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -51,6 +51,8 @@
 --	0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
 --
 --	0235 : Added IM 2 fix by Mike Johnson
+--
+--	0238 : Added NoRead signal
 --
 
 library IEEE;
@@ -116,6 +118,7 @@ entity T80_MCode is
 		SetEI			: out std_logic;
 		IMode			: out std_logic_vector(1 downto 0);
 		Halt			: out std_logic;
+		NoRead			: out std_logic;
 		Write			: out std_logic
 	);
 end T80_MCode;
@@ -202,6 +205,7 @@ begin
 		SetEI <= '0';
 		IMode <= "11";
 		Halt <= '0';
+		NoRead <= '0';
 		Write <= '0';
 
 		case ISet is
@@ -708,6 +712,7 @@ begin
 			MCycles <= "011";
 			case to_integer(unsigned(MCycle)) is
 			when 2 =>
+				NoRead <= '1';
 				ALU_Op <= "1000";
 				Read_To_Reg <= '1';
 				Save_ALU <= '1';
@@ -722,6 +727,7 @@ begin
 				TStates <= "100";
 				Arith16 <= '1';
 			when 3 =>
+				NoRead <= '1';
 				Read_To_Reg <= '1';
 				Save_ALU <= '1';
 				ALU_Op <= "1001";
@@ -794,6 +800,7 @@ begin
 			when 2 =>
 				Inc_PC <= '1';
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -808,6 +815,7 @@ begin
 					MCycles <= "010";
 				end if;
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -822,6 +830,7 @@ begin
 					MCycles <= "010";
 				end if;
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -836,6 +845,7 @@ begin
 					MCycles <= "010";
 				end if;
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -850,6 +860,7 @@ begin
 					MCycles <= "010";
 				end if;
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -872,6 +883,7 @@ begin
 				I_DJNZ <= '1';
 				Inc_PC <= '1';
 			when 3 =>
+				NoRead <= '1';
 				JumpE <= '1';
 				TStates <= "101";
 			when others => null;
@@ -1318,6 +1330,7 @@ begin
 						MCycles <= "100";
 					end if;
 				when 4 =>
+					NoRead <= '1';
 					I_BTR <= '1';
 					TStates <= "101";
 					MCycles <= "100";
@@ -1342,12 +1355,14 @@ begin
 						IncDec_16 <= "1110";
 					end if;
 				when 3 =>
+					NoRead <= '1';
 					I_BC <= '1';
 					TStates <= "101";
 					if IR(4) = '1' and F(2) = '1' and F(6) = '0' then
 						MCycles <= "100";
 					end if;
 				when 4 =>
+					NoRead <= '1';
 					I_BTR <= '1';
 					TStates <= "101";
 					MCycles <= "100";
@@ -1375,6 +1390,7 @@ begin
 				MCycles <= "011";
 				case to_integer(unsigned(MCycle)) is
 				when 2 =>
+					NoRead <= '1';
 					ALU_Op <= "1001";
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
@@ -1387,6 +1403,7 @@ begin
 						Set_BusB_To <= "1000";
 					end case;
 				when 3 =>
+					NoRead <= '1';
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
 					ALU_Op <= "1001";
@@ -1406,6 +1423,7 @@ begin
 				MCycles <= "011";
 				case to_integer(unsigned(MCycle)) is
 				when 2 =>
+					NoRead <= '1';
 					ALU_Op <= "1011";
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
@@ -1418,6 +1436,7 @@ begin
 						Set_BusB_To <= "1000";
 					end case;
 				when 3 =>
+					NoRead <= '1';
 					ALU_Op <= "1011";
 					Read_To_Reg <= '1';
 					Save_ALU <= '1';
@@ -1436,6 +1455,7 @@ begin
 				MCycles <= "100";
 				case to_integer(unsigned(MCycle)) is
 				when 2 =>
+					NoRead <= '1';
 					Set_Addr_To <= aXY;
 				when 3 =>
 					Read_To_Reg <= '1';
@@ -1544,6 +1564,7 @@ begin
 						MCycles <= "100";
 					end if;
 				when 4 =>
+					NoRead <= '1';
 					I_BTR <= '1';
 					TStates <= "101";
 					MCycles <= "100";
@@ -1577,6 +1598,7 @@ begin
 						MCycles <= "100";
 					end if;
 				when 4 =>
+					NoRead <= '1';
 					I_BTR <= '1';
 					TStates <= "101";
 					MCycles <= "100";

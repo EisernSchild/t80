@@ -3,7 +3,7 @@
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0237
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -52,6 +52,8 @@
 --
 --	0237 : Fixed T2Write with wait state
 --
+--	0238 : Updated for T80 interface change
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -89,6 +91,7 @@ architecture rtl of T80se is
 
 	signal False_M1		: std_logic;
 	signal IntCycle_n	: std_logic;
+	signal NoRead		: std_logic;
 	signal Write		: std_logic;
 	signal IORQ			: std_logic;
 	signal DI_Reg		: std_logic_vector(7 downto 0);
@@ -104,6 +107,7 @@ begin
 			CEN => CLKEN,
 			M1_n => M1_n,
 			IORQ => IORQ,
+			NoRead => NoRead,
 			Write => Write,
 			RFSH_n => RFSH_n,
 			HALT_n => HALT_n,
@@ -147,7 +151,7 @@ begin
 						MREQ_n <= '0';
 					end if;
 				else
-					if (TState = "001" or (TState = "010" and Wait_n = '0')) and Write = '0' then
+					if (TState = "001" or (TState = "010" and Wait_n = '0')) and NoRead = '0' and Write = '0' then
 						RD_n <= '0';
 						IORQ_n <= not IORQ;
 						MREQ_n <= IORQ;

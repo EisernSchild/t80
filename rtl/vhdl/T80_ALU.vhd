@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0214
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
 --
@@ -46,6 +46,8 @@
 --
 --	0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
 --
+--	0238 : Fixed zero flag for 16 bit SBC and ADC
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -54,6 +56,7 @@ use IEEE.numeric_std.all;
 entity T80_ALU is
 	port(
 		Arith16		: in std_logic;
+		Z16			: in std_logic;
 		ALU_Op		: in std_logic_vector(3 downto 0);
 		Rot_Op		: in std_logic;
 		Bit_Op		: in std_logic_vector(1 downto 0);
@@ -246,7 +249,7 @@ begin
 			end if;
 			if Q_t(7 downto 0) = "00000000" then
 				F_Out(Flag_Z) <= '1';
-				if ISet = "10" and AALU_OP(2) = '0' and AALU_OP(0) = '1' then
+				if Z16 = '1' then
 					F_Out(Flag_Z) <= F_In(Flag_Z);	-- 16 bit ADC,SBC
 				end if;
 			else

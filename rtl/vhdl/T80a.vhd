@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core, asynchronous top level
 --
--- Version : 0235
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -50,6 +50,8 @@
 --
 --	0235 : Updated for T80 interface change
 --
+--	0238 : Updated for T80 interface change
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -87,6 +89,7 @@ architecture rtl of T80a is
 	signal False_M1		: std_logic;
 	signal IntCycle_n	: std_logic;
 	signal IORQ			: std_logic;
+	signal NoRead		: std_logic;
 	signal Write		: std_logic;
 	signal MREQ			: std_logic;
 	signal MReq_Inhibit	: std_logic;
@@ -119,6 +122,7 @@ begin
 			CEN => CEN,
 			M1_n => M1_n,
 			IORQ => IORQ,
+			NoRead => NoRead,
 			Write => Write,
 			RFSH_n => RFSH_n,
 			HALT_n => HALT_n,
@@ -215,7 +219,7 @@ begin
 					MREQ <= '0';
 				end if;
 			else
-				if TState = "001" then
+				if TState = "001" and NoRead = '0' then
 					RD <= not Write;
 					IORQ_n <= not IORQ;
 					MREQ <= not IORQ;

@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0237
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -61,6 +61,8 @@
 --
 --	0237 : Changed 8080 I/O address output, added IntE output
 --
+--	0238 : Fixed (IX/IY+d) timing and 16 bit ADC and SBC zero flag
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -81,6 +83,7 @@ entity T80 is
 		BUSRQ_n		: in std_logic;
 		M1_n		: out std_logic;
 		IORQ		: out std_logic;
+		NoRead		: out std_logic;
 		Write		: out std_logic;
 		RFSH_n		: out std_logic;
 		HALT_n		: out std_logic;
@@ -134,7 +137,7 @@ architecture rtl of T80 is
 	signal DI_Reg			: std_logic_vector(7 downto 0);
 	signal T_Res			: std_logic;
 	signal XY_State			: std_logic_vector(1 downto 0);
-	signal XY_Fetch			: std_logic;
+	signal XY_Fetch			: std_logic_vector(1 downto 0);
 	signal NextIs_XY_Fetch	: std_logic;
 	signal XY_Ind			: std_logic;
 
@@ -148,6 +151,7 @@ architecture rtl of T80 is
 	-- Registered micro code outputs
 	signal Read_To_Reg_r	: std_logic_vector(4 downto 0);
 	signal Arith16_r		: std_logic;
+	signal Z16_r			: std_logic;
 	signal ALU_Op_r			: std_logic_vector(3 downto 0);
 	signal AALU_OP_r		: std_logic_vector(2 downto 0);
 	signal Rot_Op_r			: std_logic;
@@ -265,11 +269,13 @@ begin
 			SetEI => SetEI,
 			IMode => IMode,
 			Halt => Halt,
+			NoRead => NoRead,
 			Write => Write);
 
 	alu : T80_ALU
 		port map(
 			Arith16 => Arith16_r,
+			Z16 => Z16_r,
 			ALU_Op => ALU_Op_r,
 			Rot_Op => Rot_Op_r,
 			Bit_Op => Bit_Op_r,
@@ -282,8 +288,9 @@ begin
 			F_Out => F_Out,
 			F_Save => F_Save);
 
-	T_Res <= '1' when (TState = unsigned(TStates) and XY_Fetch = '0') or
-					(XY_Fetch = '1' and TState = 4) else '0'; -- Incorrect, should be 8 !!!!!!!!!!!!!!!!
+	T_Res <= '1' when (TState = unsigned(TStates) and XY_Fetch(0) = '0') or
+					(XY_Fetch(0) = '1' and TState = "111" and Mode = 0) or
+					(XY_Fetch(0) = '1' and TState = "100" and Mode = 1) else '0';
 
 	NextIs_XY_Fetch <= '1' when XY_State /= "00" and XY_Ind = '0' and ((Set_Addr_To = aXY and IR /= "11001011") or
 							(MCycle = "001" and IR = "11001011") or
@@ -311,6 +318,7 @@ begin
 
 			Read_To_Reg_r <= "00000";
 			Arith16_r <= '0';
+			Z16_r <= '0';
 			ALU_Op_r <= "0000";
 			Rot_Op_r <= '0';
 			Bit_Op_r <= "00";
@@ -323,12 +331,10 @@ begin
 
 			if CEN = '1' then
 
-			Arith16_r <= '0';
 			ALU_Op_r <= "0000";
 			Rot_Op_r <= '0';
 			Bit_Op_r <= "00";
 			Save_ALU_r <= '0';
-			PreserveC_r <= '0';
 			AALU_OP_r <= "000";
 			Read_To_Reg_r <= "00000";
 
@@ -338,7 +344,15 @@ begin
 				IStatus <= IMode;
 			end if;
 
-			if MCycle  = "001" and TState(2) = '0' and XY_Fetch = '0' then
+			Arith16_r <= Arith16;
+			PreserveC_r <= PreserveC;
+			if ISet = "10" and ALU_OP(2) = '0' and ALU_OP(0) = '1' and MCycle = "011" then
+				Z16_r <= '1';
+			else
+				Z16_r <= '0';
+			end if;
+
+			if MCycle  = "001" and TState(2) = '0' and XY_Fetch(0) = '0' then
 			-- MCycle = 1 and TState = 1, 2, or 3
 
 				if TState = 2 and Wait_n = '1' then
@@ -384,7 +398,7 @@ begin
 			else
 			-- either (MCycle > 1) OR (MCycle = 1 AND TState > 3)
 
-				if XY_Fetch = '1' then
+				if XY_Fetch(0) = '1' then
 					XY_Ind <= '1';
 				end if;
 
@@ -460,12 +474,10 @@ begin
 						end case;
 					end if;
 
-					Arith16_r <= Arith16;
+					Save_ALU_r <= Save_ALU;
 					ALU_Op_r <= ALU_Op;
 					Rot_Op_r <= Rot_Op;
 					Bit_Op_r <= Bit_Op;
-					Save_ALU_r <= Save_ALU;
-					PreserveC_r <= PreserveC;
 					if Save_ALU = '1' then
 						if Rot_Op = '0' and Bit_Op = "00" then
 							if ALU_Op(3) = '1' then
@@ -505,7 +517,7 @@ begin
 				if TState = 2 and Wait_n = '1' then
 					if JumpE = '1' then
 						PC <= unsigned(signed(PC) + signed(DI_Reg));
-					elsif Inc_PC = '1' or XY_Fetch = '1' then
+					elsif Inc_PC = '1' or XY_Fetch(0) = '1' then
 						PC <= PC + 1;
 					end if;
 					if I_BTR = '1' then
@@ -516,7 +528,7 @@ begin
 						TmpAddr(5 downto 3) <= IR(5 downto 3);
 					end if;
 				end if;
-				if TState = 3 and XY_Fetch = '1' then
+				if TState = 3 and XY_Fetch = "01" then
 					if XY_State = "01" then
 						TmpAddr <= std_logic_vector(signed(IX) + signed(DI_Reg));
 					end if;
@@ -917,7 +929,7 @@ begin
 	TS <= std_logic_vector(TState);
 	DI_Reg <= DI;
 	HALT_n <= not Halt_FF;
-	False_M1 <= XY_Fetch;
+	False_M1 <= XY_Fetch(0);
 	IntCycle_n <= not IntCycle;
 
 	process (RESET_n,CLK_n)
@@ -976,7 +988,7 @@ begin
 			BUSAK_n <= '1';
 			NMICycle <= '0';
 			IntCycle <= '0';
-			XY_Fetch <= '0';
+			XY_Fetch <= "00";
 			IntE_FF1 <= '0';
 			IntE_FF2 <= '0';
 		elsif CLK_n'event and CLK_n = '1' then   -- CLK_n is the clock signal
@@ -1006,6 +1018,9 @@ begin
 				end if;
 			else
 				if TState = 2 and Wait_n = '0' then
+				elsif XY_Fetch = "01" and TState = "100" and Mode = 0 then
+					XY_Fetch <= "11";
+					TState <= "011";
 				elsif T_Res = '1' then
 					if Halt = '1' then
 						Halt_FF <= '1';
@@ -1015,9 +1030,9 @@ begin
 						BUSAK_n <= '0';
 					else
 						TState <= "001";
-						XY_Fetch <= '0';
+						XY_Fetch <= "00";
 						if NextIs_XY_Fetch = '1' then
-							XY_Fetch <= '1';
+							XY_Fetch <= "01";
 						elsif MCycle = MCycles or (MCycle = "010" and I_DJNZ = '1' and B = "00000000") then
 							MCycle <= "001";
 							IntCycle <= '0';

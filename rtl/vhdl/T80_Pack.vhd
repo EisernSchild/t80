@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0237
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -64,6 +64,7 @@ package T80_Pack is
 		BUSRQ_n		: in std_logic;
 		M1_n		: out std_logic;
 		IORQ		: out std_logic;
+		NoRead		: out std_logic;
 		Write		: out std_logic;
 		RFSH_n		: out std_logic;
 		HALT_n		: out std_logic;
@@ -140,6 +141,7 @@ package T80_Pack is
 		SetEI			: out std_logic;
 		IMode			: out std_logic_vector(1 downto 0);
 		Halt			: out std_logic;
+		NoRead			: out std_logic;
 		Write			: out std_logic
 	);
 	end component;
@@ -147,6 +149,7 @@ package T80_Pack is
 	component T80_ALU
 	port(
 		Arith16		: in std_logic;
+		Z16			: in std_logic;
 		ALU_Op		: in std_logic_vector(3 downto 0);
 		Rot_Op		: in std_logic;
 		Bit_Op		: in std_logic_vector(1 downto 0);
