@@ -108,7 +108,7 @@ begin
 		ROM_D;
 
 	u0 : entity work.T80s
-			generic map(Mode => 1, T2Write => 1)
+			generic map(Mode => 1, T2Write => 1, IOWait => 0)
 			port map(
 				RESET_n => RESET_s,
 				CLK_n => Clk,

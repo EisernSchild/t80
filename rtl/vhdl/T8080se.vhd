@@ -3,7 +3,7 @@
 -- Different timing than the original 8080
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0240
+-- Version : 0242
 --
 -- Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -52,6 +52,8 @@
 --	0238 : Updated for T80 interface change
 --
 --	0240 : Updated for T80 interface change
+--
+--	0242 : Updated for T80 interface change
 --
 
 library IEEE;
@@ -119,7 +121,8 @@ begin
 
 	u0 : T80
 		generic map(
-			Mode => Mode)
+			Mode => Mode,
+			IOWait => 0)
 		port map(
 			CEN => CLKEN,
 			M1_n => open,

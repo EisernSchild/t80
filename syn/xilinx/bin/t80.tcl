@@ -22,13 +22,14 @@ read -technology xis2 {
 ../../../rtl/vhdl/T80_Pack.vhd
 ../../../rtl/vhdl/T80_MCode.vhd
 ../../../rtl/vhdl/T80_ALU.vhd
+../../../rtl/vhdl/T80_Reg.vhd
 ../../../rtl/vhdl/T80.vhd
 ../../../rtl/vhdl/T80s.vhd
 }
 
 pre_optimize
 
-optimize -hierarchy=auto
+optimize -area -hierarchy=auto -pass 1 -pass 2 -pass 3 -pass 4
 
 optimize_timing
 

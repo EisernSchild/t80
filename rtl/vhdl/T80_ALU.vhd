@@ -1,9 +1,9 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0240
+-- Version : 0242
 --
--- Copyright (c) 2001-2002 Daniel Wallner (dwallner@hem2.passagen.se)
+-- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
 -- All rights reserved
 --
@@ -38,7 +38,7 @@
 -- you have the latest version of this file.
 --
 -- The latest version of this file can be found at:
---	http://hem.passagen.se/dwallner/vhdl.html
+--	http://www.opencores.org/cvsweb.shtml/t80/
 --
 -- Limitations :
 --
@@ -49,6 +49,8 @@
 --	0238 : Fixed zero flag for 16 bit SBC and ADC
 --
 --	0240 : Added GB operations
+--
+--	0242 : Cleanup
 --
 
 library IEEE;
@@ -71,16 +73,13 @@ entity T80_ALU is
 		Arith16		: in std_logic;
 		Z16			: in std_logic;
 		ALU_Op		: in std_logic_vector(3 downto 0);
-		Rot_Op		: in std_logic;
-		Bit_Op		: in std_logic_vector(1 downto 0);
-		IR			: in std_logic_vector(7 downto 0);
+		IR			: in std_logic_vector(5 downto 0);
 		ISet		: in std_logic_vector(1 downto 0);
 		BusA		: in std_logic_vector(7 downto 0);
 		BusB		: in std_logic_vector(7 downto 0);
 		F_In		: in std_logic_vector(7 downto 0);
 		Q			: out std_logic_vector(7 downto 0);
-		F_Out		: out std_logic_vector(7 downto 0);
-		F_Save		: out std_logic_vector(7 downto 0)
+		F_Out		: out std_logic_vector(7 downto 0)
 	);
 end T80_ALU;
 
@@ -112,9 +111,6 @@ architecture rtl of T80_ALU is
 		Res <= std_logic_vector(Res_i(A'length - 1 downto 0));
 	end;
 
-	-- Micro code outputs
-	signal AALU_Op : std_logic_vector(2 downto 0);
-
 	-- AddSub variables (temporary signals)
 	signal	UseCarry		: std_logic;
 	signal	Carry7_v		: std_logic;
@@ -136,25 +132,74 @@ begin
 									"01000000" when "110",
 									"10000000" when others;
 
-	UseCarry <= not AALU_OP(2) and AALU_OP(0);
-	AddSub(BusA(3 downto 0), BusB(3 downto 0), AALU_OP(1), AALU_OP(1) xor (UseCarry and F_In(Flag_C)), Q_v(3 downto 0), HalfCarry_v);
-	AddSub(BusA(6 downto 4), BusB(6 downto 4), AALU_OP(1), HalfCarry_v, Q_v(6 downto 4), Carry7_v);
-	AddSub(BusA(7 downto 7), BusB(7 downto 7), AALU_OP(1), Carry7_v, Q_v(7 downto 7), Carry_v);
+	UseCarry <= not ALU_Op(2) and ALU_Op(0);
+	AddSub(BusA(3 downto 0), BusB(3 downto 0), ALU_Op(1), ALU_Op(1) xor (UseCarry and F_In(Flag_C)), Q_v(3 downto 0), HalfCarry_v);
+	AddSub(BusA(6 downto 4), BusB(6 downto 4), ALU_Op(1), HalfCarry_v, Q_v(6 downto 4), Carry7_v);
+	AddSub(BusA(7 downto 7), BusB(7 downto 7), ALU_Op(1), Carry7_v, Q_v(7 downto 7), Carry_v);
 	OverFlow_v <= Carry_v xor Carry7_v;
 
-	AALU_Op <= ALU_Op(2 downto 0) when Rot_Op = '0' and Bit_Op = "00" and ALU_Op(3) = '1' else
-				IR(5 downto 3) when Rot_Op = '0' and Bit_Op = "00" and ALU_Op(3) = '0' else "000";
-
-	process (Arith16, AALU_OP, ALU_Op, Rot_Op, Bit_Op, F_In, BusA, BusB, IR, Q_v, Carry_v, HalfCarry_v, OverFlow_v, BitMask, ISet)
+	process (Arith16, ALU_OP, F_In, BusA, BusB, IR, Q_v, Carry_v, HalfCarry_v, OverFlow_v, BitMask, ISet, Z16)
 		variable Q_t : std_logic_vector(7 downto 0);
 		variable DAA_Q : unsigned(8 downto 0);
 	begin
 		Q_t := "--------";
-		F_Out <= "--------";
-		F_Save <= "00000000";
+		F_Out <= F_In;
 		DAA_Q := "---------";
-		if ALU_Op = "1100" then -- DAA
-			F_Save <= "11111101";
+		case ALU_Op is
+		when "0000" | "0001" |  "0010" | "0011" | "0100" | "0101" | "0110" | "0111" =>
+			F_Out(Flag_N) <= '0';
+			F_Out(Flag_C) <= '0';
+			case ALU_OP(2 downto 0) is
+			when "000" | "001" => -- ADD, ADC
+				Q_t := Q_v;
+				F_Out(Flag_C) <= Carry_v;
+				F_Out(Flag_H) <= HalfCarry_v;
+				F_Out(Flag_P) <= OverFlow_v;
+			when "010" | "011" | "111" => -- SUB, SBC, CP
+				Q_t := Q_v;
+				F_Out(Flag_N) <= '1';
+				F_Out(Flag_C) <= not Carry_v;
+				F_Out(Flag_H) <= not HalfCarry_v;
+				F_Out(Flag_P) <= OverFlow_v;
+			when "100" => -- AND
+				Q_t(7 downto 0) := BusA and BusB;
+				F_Out(Flag_H) <= '1';
+			when "101" => -- XOR
+				Q_t(7 downto 0) := BusA xor BusB;
+				F_Out(Flag_H) <= '0';
+			when others => -- OR "110"
+				Q_t(7 downto 0) := BusA or BusB;
+				F_Out(Flag_H) <= '0';
+			end case;
+			if ALU_Op(2 downto 0) = "111" then -- CP
+				F_Out(Flag_X) <= BusB(3);
+				F_Out(Flag_Y) <= BusB(5);
+			else
+				F_Out(Flag_X) <= Q_t(3);
+				F_Out(Flag_Y) <= Q_t(5);
+			end if;
+			if Q_t(7 downto 0) = "00000000" then
+				F_Out(Flag_Z) <= '1';
+				if Z16 = '1' then
+					F_Out(Flag_Z) <= F_In(Flag_Z);	-- 16 bit ADC,SBC
+				end if;
+			else
+				F_Out(Flag_Z) <= '0';
+			end if;
+			F_Out(Flag_S) <= Q_t(7);
+			case ALU_Op(2 downto 0) is
+			when "000" | "001" | "010" | "011" | "111" => -- ADD, ADC, SUB, SBC, CP
+			when others =>
+				F_Out(Flag_P) <= not (Q_t(0) xor Q_t(1) xor Q_t(2) xor Q_t(3) xor
+					Q_t(4) xor Q_t(5) xor Q_t(6) xor Q_t(7));
+			end case;
+			if Arith16 = '1' then
+				F_Out(Flag_S) <= F_In(Flag_S);
+				F_Out(Flag_Z) <= F_In(Flag_Z);
+				F_Out(Flag_P) <= F_In(Flag_P);
+			end if;
+		when "1100" =>
+			-- DAA
 			F_Out(Flag_H) <= F_In(Flag_H);
 			F_Out(Flag_C) <= F_In(Flag_C);
 			DAA_Q(7 downto 0) := unsigned(BusA);
@@ -198,14 +243,14 @@ begin
 			F_Out(Flag_S) <= DAA_Q(7);
 			F_Out(Flag_P) <= not (DAA_Q(0) xor DAA_Q(1) xor DAA_Q(2) xor DAA_Q(3) xor
 				DAA_Q(4) xor DAA_Q(5) xor DAA_Q(6) xor DAA_Q(7));
-		elsif ALU_Op = "1101" or ALU_Op = "1110" then -- RLD, RRD
+		when "1101" | "1110" =>
+			-- RLD, RRD
 			Q_t(7 downto 4) := BusA(7 downto 4);
 			if ALU_Op(0) = '1' then
 				Q_t(3 downto 0) := BusB(7 downto 4);
 			else
 				Q_t(3 downto 0) := BusB(3 downto 0);
 			end if;
-			F_Save <= "11111110";
 			F_Out(Flag_H) <= '0';
 			F_Out(Flag_N) <= '0';
 			F_Out(Flag_X) <= Q_t(3);
@@ -218,92 +263,33 @@ begin
 			F_Out(Flag_S) <= Q_t(7);
 			F_Out(Flag_P) <= not (Q_t(0) xor Q_t(1) xor Q_t(2) xor Q_t(3) xor
 				Q_t(4) xor Q_t(5) xor Q_t(6) xor Q_t(7));
-		elsif Rot_Op = '0' and Bit_Op = "00" then
-			F_Save <= "11111111";
-			F_Out(Flag_N) <= '0';
-			F_Out(Flag_C) <= '0';
-			case AALU_OP is
-			when "000" | "001" => -- ADD, ADC
-				Q_t := Q_v;
-				F_Out(Flag_C) <= Carry_v;
-				F_Out(Flag_H) <= HalfCarry_v;
-				F_Out(Flag_P) <= OverFlow_v;
-			when "010" | "011" | "111" => -- SUB, SBC, CP
-				Q_t := Q_v;
-				F_Out(Flag_N) <= '1';
-				F_Out(Flag_C) <= not Carry_v;
-				F_Out(Flag_H) <= not HalfCarry_v;
-				F_Out(Flag_P) <= OverFlow_v;
-			when "100" => -- AND
-				Q_t(7 downto 0) := BusA and BusB;
-				F_Out(Flag_H) <= '1';
-			when "101" => -- XOR
-				Q_t(7 downto 0) := BusA xor BusB;
-				F_Out(Flag_H) <= '0';
-			when others => -- OR "110"
-				Q_t(7 downto 0) := BusA or BusB;
-				F_Out(Flag_H) <= '0';
-			end case;
-			if AALU_OP = "111" then -- CP
-				F_Out(Flag_X) <= BusB(3);
-				F_Out(Flag_Y) <= BusB(5);
-			else
-				F_Out(Flag_X) <= Q_t(3);
-				F_Out(Flag_Y) <= Q_t(5);
-			end if;
+		when "1001" =>
+			-- BIT
+			Q_t(7 downto 0) := BusB and BitMask;
+			F_Out(Flag_S) <= Q_t(7);
 			if Q_t(7 downto 0) = "00000000" then
 				F_Out(Flag_Z) <= '1';
-				if Z16 = '1' then
-					F_Out(Flag_Z) <= F_In(Flag_Z);	-- 16 bit ADC,SBC
-				end if;
+				F_Out(Flag_P) <= '1';
 			else
 				F_Out(Flag_Z) <= '0';
+				F_Out(Flag_P) <= '0';
 			end if;
-			F_Out(Flag_S) <= Q_t(7);
-			case AALU_OP is
-			when "000" | "001" | "010" | "011" | "111" => -- ADD, ADC, SUB, SBC, CP
-			when others =>
-				F_Out(Flag_P) <= not (Q_t(0) xor Q_t(1) xor Q_t(2) xor Q_t(3) xor
-					Q_t(4) xor Q_t(5) xor Q_t(6) xor Q_t(7));
-			end case;
-			if Arith16 = '1' then
-				F_Out(Flag_S) <= F_In(Flag_S);
-				F_Out(Flag_Z) <= F_In(Flag_Z);
-				F_Out(Flag_P) <= F_In(Flag_P);
+			F_Out(Flag_H) <= '1';
+			F_Out(Flag_N) <= '0';
+			F_Out(Flag_X) <= '0';
+			F_Out(Flag_Y) <= '0';
+			if IR(2 downto 0) /= "110" then
+				F_Out(Flag_X) <= BusB(3);
+				F_Out(Flag_Y) <= BusB(5);
 			end if;
-		elsif Bit_Op /= "00" then
-			case Bit_Op is
-			when "01" => -- Bit
-				F_Save <= "11111110";
-				Q_t(7 downto 0) := BusB and BitMask;
-				F_Out(Flag_S) <= Q_t(7);
-				if Q_t(7 downto 0) = "00000000" then
-					F_Out(Flag_Z) <= '1';
-					F_Out(Flag_P) <= '1';
-				else
-					F_Out(Flag_Z) <= '0';
-					F_Out(Flag_P) <= '0';
-				end if;
-				F_Out(Flag_H) <= '1';
-				F_Out(Flag_N) <= '0';
-				F_Out(Flag_X) <= '0';
-				F_Out(Flag_Y) <= '0';
-				if IR(2 downto 0) /= "110" then
-					F_Out(Flag_X) <= BusB(3);
-					F_Out(Flag_Y) <= BusB(5);
-				end if;
-				Q_t := "--------";
-			when "10" => -- Set
-				Q_t(7 downto 0) := BusB or BitMask;
-			when "11" => -- Res
-				Q_t(7 downto 0) := BusB and not BitMask;
-			when others =>
-			end case;
-		else
-			F_Save <= "00111011";
-			if ISet /= "00" then
-				F_Save <= "11111111";
-			end if;
+		when "1010" =>
+			-- SET
+			Q_t(7 downto 0) := BusB or BitMask;
+		when "1011" =>
+			-- RES
+			Q_t(7 downto 0) := BusB and not BitMask;
+		when "1000" =>
+			-- ROT
 			case IR(5 downto 3) is
 			when "000" => -- RLC
 				Q_t(7 downto 1) := BusA(6 downto 0);
@@ -356,7 +342,14 @@ begin
 			end if;
 			F_Out(Flag_P) <= not (Q_t(0) xor Q_t(1) xor Q_t(2) xor Q_t(3) xor
 				Q_t(4) xor Q_t(5) xor Q_t(6) xor Q_t(7));
-		end if;
+			if ISet = "00" then
+				F_Out(Flag_P) <= F_In(Flag_P);
+				F_Out(Flag_S) <= F_In(Flag_S);
+				F_Out(Flag_Z) <= F_In(Flag_Z);
+			end if;
+		when others =>
+			null;
+		end case;
 		Q <= Q_t;
 	end process;
 

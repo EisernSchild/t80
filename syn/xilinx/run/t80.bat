@@ -33,7 +33,7 @@ move %name%.bld ..\log
 map -p %target% -cm speed -c 100 -tx on -o %name%_map %name%
 move %name%_map.mrp ..\log\%name%.mrp
 
-par -ol 3 -t 1 -c 0 %name%_map -w %name%
+par -ol 3 -t 1 %name%_map -w %name%
 move %name%.par ..\log
 
 trce %name%.ncd -o ../log/%name%.twr %name%_map.pcf

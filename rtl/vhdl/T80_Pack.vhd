@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0240
+-- Version : 0242
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -53,6 +53,7 @@ package T80_Pack is
 	component T80
 	generic(
 		Mode : integer := 0;	-- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
+		IOWait : integer := 0;	-- 1 => Single cycle I/O, 1 => Std I/O cycle
 		Flag_C : integer := 0;
 		Flag_N : integer := 1;
 		Flag_P : integer := 2;
@@ -89,7 +90,25 @@ package T80_Pack is
 	);
 	end component;
 
-	type AddressOutput is (aXY,aIOA,aSP,aBC,aDE,aZI,aNone);
+	component T80_Reg
+	port(
+		Clk			: in std_logic;
+		CEN			: in std_logic;
+		WEH			: in std_logic;
+		WEL			: in std_logic;
+		AddrA		: in std_logic_vector(2 downto 0);
+		AddrB		: in std_logic_vector(2 downto 0);
+		AddrC		: in std_logic_vector(2 downto 0);
+		DIH			: in std_logic_vector(7 downto 0);
+		DIL			: in std_logic_vector(7 downto 0);
+		DOAH		: out std_logic_vector(7 downto 0);
+		DOAL		: out std_logic_vector(7 downto 0);
+		DOBH		: out std_logic_vector(7 downto 0);
+		DOBL		: out std_logic_vector(7 downto 0);
+		DOCH		: out std_logic_vector(7 downto 0);
+		DOCL		: out std_logic_vector(7 downto 0)
+	);
+	end component;
 
 	component T80_MCode
 	generic(
@@ -119,15 +138,13 @@ package T80_Pack is
 		Read_To_Reg		: out std_logic;
 		Read_To_Acc		: out std_logic;
 		Set_BusA_To	: out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI/DB,A,SP(L),SP(M),0,F
-		Set_BusB_To	: out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI,A,SP(L),SP(M),1,F,PC(L),PC(M)
+		Set_BusB_To	: out std_logic_vector(3 downto 0); -- B,C,D,E,H,L,DI,A,SP(L),SP(M),1,F,PC(L),PC(M),0
 		ALU_Op			: out std_logic_vector(3 downto 0);
-			-- (ir)ADD, (ir)ADC, (ir)SUB, (ir)SBC, (ir)AND, (ir)XOR, (ir)OR, (ir)CP, ADD, ADC, SUB, SBC, DAA, RLD, RRD, CP
-		Rot_Op			: out std_logic;
-		Bit_Op			: out std_logic_vector(1 downto 0); -- None, BIT, SET, RES
+			-- ADD, ADC, SUB, SBC, AND, XOR, OR, CP, ROT, BIT, SET, RES, DAA, RLD, RRD, None
 		Save_ALU		: out std_logic;
 		PreserveC		: out std_logic;
 		Arith16			: out std_logic;
-		Set_Addr_To		: out AddressOutput; -- aXY,aIOA,aSP,aBC,aDE,aZI,aNone
+		Set_Addr_To		: out std_logic_vector(2 downto 0); -- aNone,aXY,aIOA,aSP,aBC,aDE,aZI
 		IORQ			: out std_logic;
 		Jump			: out std_logic;
 		JumpE			: out std_logic;
@@ -178,16 +195,13 @@ package T80_Pack is
 		Arith16		: in std_logic;
 		Z16			: in std_logic;
 		ALU_Op		: in std_logic_vector(3 downto 0);
-		Rot_Op		: in std_logic;
-		Bit_Op		: in std_logic_vector(1 downto 0);
-		IR			: in std_logic_vector(7 downto 0);
+		IR			: in std_logic_vector(5 downto 0);
 		ISet		: in std_logic_vector(1 downto 0);
 		BusA		: in std_logic_vector(7 downto 0);
 		BusB		: in std_logic_vector(7 downto 0);
 		F_In		: in std_logic_vector(7 downto 0);
 		Q			: out std_logic_vector(7 downto 0);
-		F_Out		: out std_logic_vector(7 downto 0);
-		F_Save		: out std_logic_vector(7 downto 0)
+		F_Out		: out std_logic_vector(7 downto 0)
 	);
 	end component;
 

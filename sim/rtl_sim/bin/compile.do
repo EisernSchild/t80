@@ -1,6 +1,7 @@
 vcom ../../../rtl/vhdl/T80_Pack.vhd
 vcom ../../../rtl/vhdl/T80_MCode.vhd
 vcom ../../../rtl/vhdl/T80_ALU.vhd
+vcom ../../../rtl/vhdl/T80_Reg.vhd
 vcom ../../../rtl/vhdl/T80.vhd
 vcom ../../../rtl/vhdl/T80a.vhd
 vcom ../../../rtl/vhdl/T80s.vhd

@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core, asynchronous top level
 --
--- Version : 0240
+-- Version : 0242
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -53,6 +53,8 @@
 --	0238 : Updated for T80 interface change
 --
 --	0240 : Updated for T80 interface change
+--
+--	0242 : Updated for T80 interface change
 --
 
 library IEEE;
@@ -118,7 +120,8 @@ begin
 
 	u0 : T80
 		generic map(
-			Mode => Mode)
+			Mode => Mode,
+			IOWait => 1)
 		port map(
 			CEN => CEN,
 			M1_n => M1_n,

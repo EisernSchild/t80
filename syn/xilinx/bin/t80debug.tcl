@@ -22,6 +22,7 @@ read -technology xis2 {
 ../../../rtl/vhdl/T80_Pack.vhd
 ../../../rtl/vhdl/T80_MCode.vhd
 ../../../rtl/vhdl/T80_ALU.vhd
+../../../rtl/vhdl/T80_Reg.vhd
 ../../../rtl/vhdl/T80.vhd
 ../../../rtl/vhdl/T80s.vhd
 ../../../rtl/vhdl/T16450.vhd
