@@ -166,7 +166,7 @@ begin
 						MREQ_n <= IORQ;
 					end if;
 				else
-					if (TState = "001" or (TState = "010" and READY = '0')) and Write = '1' then
+					if (TState = "001" or (TState = "010" and Wait_n = '0')) and Write = '1' then
 						WR_n <= '0';
 						IORQ_n <= not IORQ;
 						MREQ_n <= IORQ;
