@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0235
+-- Version : 0237
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -59,6 +59,8 @@
 --
 --	0235 : Added clock enable and IM 2 fix by Mike Johnson
 --
+--	0237 : Changed 8080 I/O address output, added IntE output
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -90,7 +92,8 @@ entity T80 is
 		MC			: out std_logic_vector(2 downto 0);
 		TS			: out std_logic_vector(2 downto 0);
 		False_M1	: out std_logic;
-		IntCycle_n	: out std_logic
+		IntCycle_n	: out std_logic;
+		IntE		: out std_logic
 	);
 end T80;
 
@@ -203,6 +206,8 @@ architecture rtl of T80 is
 	signal Halt				: std_logic;
 
 begin
+
+	IntE <= IntE_FF1;
 
 	mcode : T80_MCode
 		generic map(
@@ -428,7 +433,12 @@ begin
 								end if;
 							end if;
 						when aIOA =>
-							A(15 downto 8) <= ACC;
+							if Mode = 2 then
+								-- Duplicate I/O address on 8080
+								A(15 downto 8) <= DI_Reg;
+							else
+								A(15 downto 8) <= ACC;
+							end if;
 							A(7 downto 0) <= DI_Reg;
 						when aSP =>
 							A <= std_logic_vector(SP);

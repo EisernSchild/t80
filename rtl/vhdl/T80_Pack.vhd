@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0235
+-- Version : 0237
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -75,7 +75,8 @@ package T80_Pack is
 		MC			: out std_logic_vector(2 downto 0);
 		TS			: out std_logic_vector(2 downto 0);
 		False_M1	: out std_logic;
-		IntCycle_n	: out std_logic
+		IntCycle_n	: out std_logic;
+		IntE		: out std_logic
 	);
 	end component;
 
