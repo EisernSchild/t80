@@ -1,7 +1,7 @@
 --
 -- Z80 compatible microprocessor core
 --
--- Version : 0242
+-- Version : 0247
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -52,6 +52,8 @@
 --
 --	0242 : Cleanup
 --
+--	0247 : Cleanup
+--
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -91,24 +93,17 @@ architecture rtl of T80_ALU is
 					Carry_In : std_logic;
 					signal Res : out std_logic_vector;
 					signal Carry : out std_logic) is
-		variable B_i		: unsigned(A'length downto 0);
-		variable Full_Carry	: unsigned(A'length downto 0);
-		variable Res_i		: unsigned(A'length downto 0);
+		variable B_i		: unsigned(A'length - 1 downto 0);
+		variable Res_i		: unsigned(A'length + 1 downto 0);
 	begin
 		if Sub = '1' then
-			B_i := "0" & not unsigned(B);
+			B_i := not unsigned(B);
 		else
-			B_i := "0" & unsigned(B);
+			B_i := unsigned(B);
 		end if;
-		if (Sub = '1' and Carry_In = '1') or (Sub = '0' and Carry_In = '1') then
-			Full_Carry := (others => '0');
-			Full_Carry(0) := '1';
-		else
-			Full_Carry := (others => '0');
-		end if;
-		Res_i := unsigned("0" & A) + B_i + Full_Carry;
-		Carry <= Res_i(A'length);
-		Res <= std_logic_vector(Res_i(A'length - 1 downto 0));
+		Res_i := unsigned("0" & A & Carry_In) + unsigned("0" & B_i & "1");
+		Carry <= Res_i(A'length + 1);
+		Res <= std_logic_vector(Res_i(A'length downto 1));
 	end;
 
 	-- AddSub variables (temporary signals)
