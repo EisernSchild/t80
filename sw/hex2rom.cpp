@@ -1,7 +1,7 @@
 //
 // Binary and intel/motorola hex to VHDL ROM converter
 //
-// Version : 0220
+// Version : 0221
 //
 // Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 //
@@ -55,6 +55,8 @@
 // 0215 : Added support for synchronous ROM
 //
 // 0220 : Changed array ROM format, added support for Xilinx .UCF generation
+//
+// 0221 : Fixed small .UCF generation for small ROMs
 //
 
 #include <stdio.h>
@@ -585,7 +587,7 @@ private:
 
 int main (int argc, char *argv[])
 {
-	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0220\n";
+	cerr << "Hex to VHDL ROM converter by Daniel Wallner. Version 0221\n";
 
 	try
 	{
@@ -845,7 +847,15 @@ int main (int argc, char *argv[])
 							}
 							bitMask <<= 1;
 						}
-						printf("\nINST *s%s%d%d INIT = %04X;", outFileName.c_str(), i, j, bits);
+
+						if (selectIter == 1)
+						{
+							printf("\nINST *s%s%d INIT = %04X;", outFileName.c_str(), j, bits);
+						}
+						else
+						{
+							printf("\nINST *s%s%d%d INIT = %04X;", outFileName.c_str(), i, j, bits);
+						}
 					}
 				}
 			}
@@ -858,7 +868,7 @@ int main (int argc, char *argv[])
 					unsigned long k;
 					for (k = 0; k < 16; k++)
 					{
-						unsigned long base = i * 512 * bytes + j + k * 32 * bytes;
+						unsigned long base = i * 512 * bytes + k * 32 * bytes;
 						unsigned char c;
 						unsigned long pos;
 
@@ -875,7 +885,14 @@ int main (int argc, char *argv[])
 
 						if (init)
 						{
-							printf("\nINST *b%s%d%d INIT_%02X = ", outFileName.c_str(), i, j, k);
+							if (blockIter == 1)
+							{
+								printf("\nINST *b%s%d INIT_%02X = ", outFileName.c_str(), j, k);
+							}
+							else
+							{
+								printf("\nINST *b%s%d%d INIT_%02X = ", outFileName.c_str(), i, j, k);
+							}
 							for (pos = 0; pos < 32; pos++)
 							{
 								unsigned long addr;
