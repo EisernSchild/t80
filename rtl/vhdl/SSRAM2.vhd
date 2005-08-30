@@ -68,7 +68,7 @@ architecture behaviour of SSRAM is
 
 	type Memory_Image is array (natural range <>) of std_logic_vector(DataWidth - 1 downto 0);
 	signal	RAM		: Memory_Image(0 to 2 ** AddrWidth - 1);
-	signal	A_r		: std_logic_vector(AddrWidth - 1 downto 0);
+--	signal	A_r		: std_logic_vector(AddrWidth - 1 downto 0);
 
 begin
 
@@ -83,9 +83,9 @@ begin
 			end if;
 -- pragma translate_on
 			if CE_n = '0' and WE_n = '0' then
-				RAM(to_integer(unsigned(A_r))) <= DIn;
+				RAM(to_integer(unsigned(A))) <= DIn;
 			end if;
-			A_r <= A;
+--			A_r <= A;
 		end if;
 	end process;
 

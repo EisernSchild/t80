@@ -90,7 +90,7 @@ architecture rtl of SSRAM is
 	signal bRAMOut : bRAMOut_a;
 	signal biA_r : integer;
 	signal A_r : unsigned(A'left downto 0);
-	signal A_i : std_logic_vector(8 downto 0);
+--	signal A_i : std_logic_vector(8 downto 0);
 	signal WEA : std_logic_vector(RAMs - 1 downto 0);
 
 begin
@@ -103,7 +103,7 @@ begin
 	end process;
 
 	biA_r <= to_integer(A_r(A'left downto 9));
-	A_i <= std_logic_vector(A_r(8 downto 0)) when (CE_n nor WE_n) = '1' else A(8 downto 0);
+--	A_i <= std_logic_vector(A_r(8 downto 0)) when (CE_n nor WE_n) = '1' else A(8 downto 0);
 
 	bG1: for I in 0 to RAMs - 1 generate
 	begin
@@ -115,7 +115,7 @@ begin
 				WE => WEA(I),
 				RST => '0',
 				CLK => Clk,
-				ADDR => A_i,
+				ADDR => A,
 				DO => bRAMOut(I));
 	end generate;
 
