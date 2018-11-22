@@ -7,12 +7,13 @@
 -- Latest version from www.fpgaarcade.com (original www.opencores.org)
 --
 -- ****
+-- ** CUSTOM 2 CLOCK MEMORY ACCESS FOR PACMAN, MIKEJ **
 --
 -- Z80 compatible microprocessor core, synchronous top level with clock enable
 -- Different timing than the original z80
 -- Inputs needs to be synchronous and outputs may glitch
 --
--- Version : 0240
+-- Version : 0238
 --
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
 --
@@ -63,21 +64,15 @@
 --
 --      0238 : Updated for T80 interface change
 --
---      0240 : Updated for T80 interface change
---
 --      0242 : Updated for T80 interface change
 --
+
 library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 use work.T80_Pack.all;
 
-entity T80se is
-	generic(
-		Mode : integer := 0;    -- 0 => Z80, 1 => Fast Z80, 2 => 8080, 3 => GB
-		T2Write : integer := 0;  -- 0 => WR_n active in T3, /=0 => WR_n active in T2
-		IOWait : integer := 1   -- 0 => Single cycle I/O, 1 => Std I/O cycle
-	);
+entity T80sed is
 	port(
 		RESET_n         : in  std_logic;
 		CLK_n           : in  std_logic;
@@ -98,9 +93,9 @@ entity T80se is
 		DI              : in  std_logic_vector(7 downto 0);
 		DO              : out std_logic_vector(7 downto 0)
 	);
-end T80se;
+end T80sed;
 
-architecture rtl of T80se is
+architecture rtl of T80sed is
 
 	signal IntCycle_n   : std_logic;
 	signal NoRead       : std_logic;
@@ -114,8 +109,8 @@ begin
 
 	u0 : T80
 		generic map(
-			Mode => Mode,
-			IOWait => IOWait)
+			Mode      => 0,
+			IOWait    => 1)
 		port map(
 			CEN        => CLKEN,
 			M1_n       => M1_n,
@@ -163,24 +158,16 @@ begin
 						MREQ_n <= '0';
 					end if;
 				else
-					if (TState = "001" or (TState = "010" and Wait_n = '0')) and NoRead = '0' and Write = '0' then
+					if (TState = "001" or TState = "010") and NoRead = '0' and Write = '0' then
 						RD_n <= '0';
 						IORQ_n <= not IORQ;
 						MREQ_n <= IORQ;
 					end if;
-					if T2Write = 0 then
-						if TState = "010" and Write = '1' then
+						if ((TState = "001") or (TState = "010")) and Write = '1' then
 							WR_n <= '0';
 							IORQ_n <= not IORQ;
 							MREQ_n <= IORQ;
 						end if;
-					else
-						if (TState = "001" or (TState = "010" and Wait_n = '0')) and Write = '1' then
-							WR_n <= '0';
-							IORQ_n <= not IORQ;
-							MREQ_n <= IORQ;
-						end if;
-					end if;
 				end if;
 				if TState = "010" and Wait_n = '1' then
 					DI_Reg <= DI;
