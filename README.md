@@ -1,11 +1,10 @@
 
 # T80(c) core.
-v0208 - v0247 Copyright (c) 2002 Daniel Wallner (jesus@opencores.org)
-              www.opencores.org
-v0300 - v0303 Copyright (c) 2005 MikeJ, Sean Riddle
-              www.fpgaarcade.com
-v0350         Copyright (c) 2018 Sorgelig
-              https://github.com/MiSTer-devel
+v0208 - v0247 Copyright (c) 2002 Daniel Wallner (jesus@opencores.org) www.opencores.org
+
+v0300 - v0303 Copyright (c) 2005 MikeJ, Sean Riddle www.fpgaarcade.com
+
+v0350 Copyright (c) 2018 Sorgelig https://github.com/MiSTer-devel
 			  
  Redistribution and use in source and synthezised forms, with or without
  modification, are permitted provided that the following conditions are met:
@@ -38,7 +37,11 @@ v0350         Copyright (c) 2018 Sorgelig
  you have the latest version of this file.
 
 # Description
-Configurable cpu core that supports Z80, 8080 and gameboy instruction sets. Z80 and 8080 compability have been proven by numerous implementations of old computer and arcade systems. It is used in the zxgate project, a zx81, zx spectrum, trs80 and Jupiter ACE clone project. And also in the FPGA Arcade project. A Z80 SoC debug system with ROM, RAM and two 16450 UARTs is included in the distribution. It is possible to run the NoICE debugger on this system. Batch files for runnning XST and Leonardo synthesis can be found in syn/xilinx/run/. Check these scripts to see how to use the included VHDL ROM generators. Before you can run the scripts you need to compile hex2rom and xrom or download binaries from here. You must also replace one of the hex files in sw/ or change the batch files to use another hex file. The z88dk C compiler can be used with T80. The "embedded" configuration can be used with the debug system without modifications. Browse source code here. Download latest tarball here. Thanks to MikeJ for some serious debugging and to the zxgate project members for invaluable Z80 information.
+Configurable cpu core that supports Z80, 8080 and gameboy instruction sets. Z80 and 8080 compability have been proven by numerous implementations of old computer and arcade systems. It is used in the zxgate project, a zx81, zx spectrum, trs80 and Jupiter ACE clone project. And also in the FPGA Arcade project. A Z80 SoC debug system with ROM, RAM and two 16450 UARTs is included in the distribution. It is possible to run the NoICE debugger on this system. Batch files for runnning XST and Leonardo synthesis can be found in syn/xilinx/run/. Check these scripts to see how to use the included VHDL ROM generators. Before you can run the scripts you need to compile hex2rom and xrom or download binaries from here. You must also replace one of the hex files in sw/ or change the batch files to use another hex file. The z88dk C compiler can be used with T80. The "embedded" configuration can be used with the debug system without modifications. Browse source code here. Download latest tarball here. 
+
+Thanks to MikeJ for some serious debugging and to the zxgate project members for invaluable Z80 information.
+
+Latest version of this core (by Sorgelig) is used in various cores in the MiSTer project. 
 
 # Features
 - Technology independent
@@ -55,7 +58,9 @@ Configurable cpu core that supports Z80, 8080 and gameboy instruction sets. Z80 
 # Status
 
 Version 0350 : Attempt to finish all undocumented features and provide accurate timings.
+
 Copyright (c) 2018 Sorgelig
+
 Test passed: ZEXDOC, ZEXALL, Z80Full(*), Z80memptr
 (*) Currently only SCF and CCF instructions aren't passed X/Y flags check as correct implementation is still unclear.
 
