@@ -1,6 +1,15 @@
+--------------------------------------------------------------------------------
+-- ****
+-- T80(c) core. Attempt to finish all undocumented features and provide
+--              accurate timings.
+-- Version 350.
+-- Copyright (c) 2018 Sorgelig
+--  Test passed: ZEXDOC, ZEXALL, Z80Full(*), Z80memptr
+--  (*) Currently only SCF and CCF instructions aren't passed X/Y flags check as
+--      correct implementation is still unclear.
+--
 -- ****
 -- T80(b) core. In an effort to merge and maintain bug fixes ....
---
 --
 -- Ver 301 parity flag is just parity for 8080, also overflow for Z80, by Sean Riddle
 -- Ver 300 started tidyup
@@ -8,13 +17,10 @@
 -- Latest version from www.fpgaarcade.com (original www.opencores.org)
 --
 -- ****
---
 -- Z80 compatible microprocessor core
 --
 -- Version : 0247
---
 -- Copyright (c) 2001-2002 Daniel Wallner (jesus@opencores.org)
---
 -- All rights reserved
 --
 -- Redistribution and use in source and synthezised forms, with or without
@@ -55,13 +61,9 @@
 -- File history :
 --
 --      0214 : Fixed mostly flags, only the block instructions now fail the zex regression test
---
 --      0238 : Fixed zero flag for 16 bit SBC and ADC
---
 --      0240 : Added GB operations
---
 --      0242 : Cleanup
---
 --      0247 : Cleanup
 --
 
@@ -84,6 +86,8 @@ entity T80_ALU is
 	port(
 		Arith16         : in  std_logic;
 		Z16             : in  std_logic;
+		WZ              : in  std_logic_vector(15 downto 0);
+		XY_State		    : in  std_logic_vector(1 downto 0);
 		ALU_Op          : in  std_logic_vector(3 downto 0);
 		IR              : in  std_logic_vector(5 downto 0);
 		ISet            : in  std_logic_vector(1 downto 0);
@@ -154,7 +158,7 @@ begin
 		end if;
 	end process;
 
-	process (Arith16, ALU_OP, F_In, BusA, BusB, IR, Q_v, Carry_v, HalfCarry_v, OverFlow_v, BitMask, ISet, Z16)
+	process (Arith16, ALU_OP, F_In, BusA, BusB, IR, Q_v, Carry_v, HalfCarry_v, OverFlow_v, BitMask, ISet, Z16, WZ, XY_State)
 		variable Q_t : std_logic_vector(7 downto 0);
 		variable DAA_Q : unsigned(8 downto 0);
 	begin
@@ -216,64 +220,35 @@ begin
 			end if;
 		when "1100" =>
 			-- DAA
-			if Mode = 3 then
-				F_Out(Flag_H) <= '0';
-				F_Out(Flag_C) <= F_In(Flag_C);
-				DAA_Q(7 downto 0) := unsigned(BusA);
-				DAA_Q(8) := '0';
-				if F_In(Flag_N) = '0' then
-					-- After addition
-					-- Alow > 9 or H = 1
-					if DAA_Q(3 downto 0) > 9 or F_In(Flag_H) = '1' then
-							DAA_Q := DAA_Q + 6;
+			F_Out(Flag_H) <= F_In(Flag_H);
+			F_Out(Flag_C) <= F_In(Flag_C);
+			DAA_Q(7 downto 0) := unsigned(BusA);
+			DAA_Q(8) := '0';
+			if F_In(Flag_N) = '0' then
+				-- After addition
+				-- Alow > 9 or H = 1
+				if DAA_Q(3 downto 0) > 9 or F_In(Flag_H) = '1' then
+					if (DAA_Q(3 downto 0) > 9) then
+						F_Out(Flag_H) <= '1';
+					else
+						F_Out(Flag_H) <= '0';
 					end if;
-					-- new Ahigh > 9 or C = 1
-					if DAA_Q(8 downto 4) > 9 or F_In(Flag_C) = '1' then
-						DAA_Q := DAA_Q + 96; -- 0x60
-					end if;
-				else
-					-- After subtraction
-					if F_In(Flag_H) = '1' then
-						DAA_Q := DAA_Q - 6;
-						if F_In(Flag_C) = '0' then
-							DAA_Q(8) := '0';
-						end if;
-					end if;
-					if F_In(Flag_C) = '1' then
-						DAA_Q := DAA_Q - 96; -- 0x60
-					end if;
+					DAA_Q := DAA_Q + 6;
+				end if;
+				-- new Ahigh > 9 or C = 1
+				if DAA_Q(8 downto 4) > 9 or F_In(Flag_C) = '1' then
+					DAA_Q := DAA_Q + 96; -- 0x60
 				end if;
 			else
-				F_Out(Flag_H) <= F_In(Flag_H);
-				F_Out(Flag_C) <= F_In(Flag_C);
-				DAA_Q(7 downto 0) := unsigned(BusA);
-				DAA_Q(8) := '0';
-				if F_In(Flag_N) = '0' then
-					-- After addition
-					-- Alow > 9 or H = 1
-					if DAA_Q(3 downto 0) > 9 or F_In(Flag_H) = '1' then
-						if (DAA_Q(3 downto 0) > 9) then
-							F_Out(Flag_H) <= '1';
-						else
-							F_Out(Flag_H) <= '0';
-						end if;
-						DAA_Q := DAA_Q + 6;
+				-- After subtraction
+				if DAA_Q(3 downto 0) > 9 or F_In(Flag_H) = '1' then
+					if DAA_Q(3 downto 0) > 5 then
+						F_Out(Flag_H) <= '0';
 					end if;
-					-- new Ahigh > 9 or C = 1
-					if DAA_Q(8 downto 4) > 9 or F_In(Flag_C) = '1' then
-						DAA_Q := DAA_Q + 96; -- 0x60
-					end if;
-				else
-					-- After subtraction
-					if DAA_Q(3 downto 0) > 9 or F_In(Flag_H) = '1' then
-						if DAA_Q(3 downto 0) > 5 then
-							F_Out(Flag_H) <= '0';
-						end if;
-						DAA_Q(7 downto 0) := DAA_Q(7 downto 0) - 6;
-					end if;
-					if unsigned(BusA) > 153 or F_In(Flag_C) = '1' then
-						DAA_Q := DAA_Q - 352; -- 0x160
-					end if;
+					DAA_Q(7 downto 0) := DAA_Q(7 downto 0) - 6;
+				end if;
+				if unsigned(BusA) > 153 or F_In(Flag_C) = '1' then
+					DAA_Q := DAA_Q - 352; -- 0x160
 				end if;
 			end if;
 			F_Out(Flag_X) <= DAA_Q(3);
@@ -321,9 +296,10 @@ begin
 			end if;
 			F_Out(Flag_H) <= '1';
 			F_Out(Flag_N) <= '0';
-			F_Out(Flag_X) <= '0';
-			F_Out(Flag_Y) <= '0';
-			if IR(2 downto 0) /= "110" then
+			if IR(2 downto 0) = "110" or XY_State /= "00" then
+				F_Out(Flag_X) <= WZ(11);
+				F_Out(Flag_Y) <= WZ(13);
+			else
 				F_Out(Flag_X) <= BusB(3);
 				F_Out(Flag_Y) <= BusB(5);
 			end if;
